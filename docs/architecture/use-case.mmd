@@ -1,0 +1,43 @@
+%%{init: {"theme":"base","themeVariables":{"background":"#F8FAFC","primaryColor":"#EEF2FF","primaryBorderColor":"#4F46E5","primaryTextColor":"#0F172A","lineColor":"#64748B","textColor":"#0F172A","clusterBkg":"#F8FAFC","clusterBorder":"#E2E8F0","edgeLabelBackground":"#F8FAFC"},"flowchart":{"curve":"basis","htmlLabels":true}}}%%
+flowchart LR
+    employee@{ shape: person, label: "Nhân viên" }
+    manager@{ shape: person, label: "Manager" }
+    admin@{ shape: person, label: "Admin" }
+
+    subgraph alloca["Alloca SRBS — Phase 1"]
+        direction TB
+        subgraph common["Chức năng chung"]
+            uc01(["Đăng nhập / đổi mật khẩu / logout client"])
+            uc02(["Xem resource và availability"])
+            uc03(["Tạo/hủy booking của mình"])
+            uc04(["Xem lịch sử và notification của mình"])
+            uc05(["Đặt chỗ từ floor map 2 bước"])
+        end
+        subgraph management["Quản lý theo department chủ booking"]
+            uc06(["Tạo/xem/hủy booking user cùng department"])
+            uc07(["Xem utilization của resource department"])
+            uc08(["Nhận utilization alert department"])
+        end
+        subgraph administration["Quản trị hệ thống"]
+            uc09(["Quản lý resource/status/schedule"])
+            uc10(["Quản lý account, role và department"])
+            uc11(["Cấu hình threshold và reminder lead time"])
+            uc12(["Xem dashboard/report/alert toàn hệ thống"])
+            uc13(["Tải PNG/JPEG map và gán marker"])
+            uc14(["Nhận alert shared resource"])
+        end
+    end
+
+    employee --> uc01 & uc02 & uc03 & uc04 & uc05
+    manager -. "kế thừa quyền Nhân viên" .-> employee
+    manager --> uc06 & uc07 & uc08
+    admin -. "kế thừa quyền Manager" .-> manager
+    admin --> uc09 & uc10 & uc11 & uc12 & uc13 & uc14
+    uc03 -. "bao gồm availability + điều kiện thời gian" .-> uc02
+    uc05 -. "bao gồm" .-> uc03
+    uc09 -. "schedule phải không làm vô hiệu booking CONFIRMED ongoing/future" .-> uc03
+
+    classDef actor fill:#EFF6FF,stroke:#2563EB,stroke-width:1.5px,color:#0F172A;
+    classDef usecase fill:#EEF2FF,stroke:#4F46E5,stroke-width:1px,color:#0F172A;
+    class employee,manager,admin actor;
+    class uc01,uc02,uc03,uc04,uc05,uc06,uc07,uc08,uc09,uc10,uc11,uc12,uc13,uc14 usecase;

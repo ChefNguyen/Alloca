@@ -1,0 +1,45 @@
+%%{init: {"theme":"base","themeVariables":{"background":"#F8FAFC","primaryColor":"#EEF2FF","primaryBorderColor":"#4F46E5","primaryTextColor":"#0F172A","lineColor":"#64748B","textColor":"#0F172A","clusterBkg":"#F8FAFC","clusterBorder":"#E2E8F0","edgeLabelBackground":"#F8FAFC"},"flowchart":{"curve":"basis","htmlLabels":true}}}%%
+flowchart TB
+    user["Thiết bị người dùng<br/>Trình duyệt web"]
+
+    subgraph edge["Edge và giao diện"]
+        dns["Cloudflare DNS Free<br/>(tùy chọn khi có tên miền)"]
+        frontend["Vercel Hobby<br/>React + Vite<br/>CDN tích hợp"]
+    end
+
+    subgraph application["Tầng ứng dụng"]
+        backend["Render Free Web Service<br/>Spring Boot 3 / Java 17<br/>HTTPS công khai<br/>ngủ sau 15 phút không hoạt động"]
+    end
+
+    subgraph data["Dữ liệu và tệp"]
+        database[("Supabase Free<br/>PostgreSQL<br/>500 MB database")]
+        floorMaps[("Cloudflare R2 Free Tier<br/>Ảnh sơ đồ mặt bằng")]
+    end
+
+    email["Email API qua HTTPS<br/>(tùy chọn)"]
+
+    user -- "HTTPS" --> frontend
+    dns -. "phân giải tên miền" .-> frontend
+    frontend -- "REST API / HTTPS<br/>JSON + JWT" --> backend
+    backend -- "JDBC qua TLS<br/>Session Pooler" --> database
+    backend -- "S3-compatible API / HTTPS" --> floorMaps
+    frontend -. "tải ảnh qua URL công khai" .-> floorMaps
+    backend -. "gửi email qua HTTPS" .-> email
+
+    limitNote["Bản demo có thể chạy với chi phí 0 đồng trong hạn mức free tier.<br/>Render có khởi động nguội; Supabase có thể tạm dừng khi ít hoạt động.<br/>Tên miền riêng và Email API không được tính vào cấu hình 0 đồng."]
+    limitNote -.-> application
+
+    classDef frontendLayer fill:#EFF6FF,stroke:#2563EB,stroke-width:1px,color:#0F172A;
+    classDef backendLayer fill:#EEF2FF,stroke:#4F46E5,stroke-width:1px,color:#0F172A;
+    classDef databaseLayer fill:#ECFDF5,stroke:#059669,stroke-width:1px,color:#0F172A;
+    classDef storageLayer fill:#ECFEFF,stroke:#0891B2,stroke-width:1px,color:#0F172A;
+    classDef edgeLayer fill:#FFF7ED,stroke:#EA580C,stroke-width:1px,color:#0F172A;
+    classDef external fill:#FAFAFA,stroke:#64748B,stroke-width:1px,color:#0F172A;
+    classDef note fill:#FAFAFA,stroke:#94A3B8,stroke-width:1px,stroke-dasharray:4 3,color:#475569;
+    class frontend frontendLayer;
+    class backend backendLayer;
+    class database databaseLayer;
+    class floorMaps storageLayer;
+    class dns edgeLayer;
+    class user,email external;
+    class limitNote note;

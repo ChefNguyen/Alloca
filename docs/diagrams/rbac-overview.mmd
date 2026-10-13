@@ -1,0 +1,51 @@
+%%{init: {"theme":"base","themeVariables":{"background":"#F8FAFC","primaryColor":"#EEF2FF","primaryBorderColor":"#4F46E5","primaryTextColor":"#0F172A","lineColor":"#64748B","textColor":"#0F172A","clusterBkg":"#F8FAFC","clusterBorder":"#CBD5E1","edgeLabelBackground":"#F8FAFC"},"flowchart":{"curve":"basis","htmlLabels":true}}}%%
+flowchart LR
+    employee@{ shape: person, label: "Nhân viên" }
+    manager@{ shape: person, label: "Manager" }
+    admin@{ shape: person, label: "Admin" }
+
+    subgraph employeeScope["Phạm vi cá nhân"]
+        e1["Xem resource và availability"]
+        e2["Tạo booking cho mình"]
+        e3["Hủy booking của mình trước start"]
+        e4["Xem lịch sử và notification của mình"]
+        e5["Đặt chỗ từ floor map"]
+    end
+
+    subgraph managerScope["Phạm vi department của chủ booking"]
+        m1["Tạo/xem/hủy booking của user cùng department"]
+        m2["Xem báo cáo resource do department sở hữu"]
+        m3["Nhận alert resource do department sở hữu"]
+    end
+
+    subgraph adminScope["Phạm vi toàn hệ thống"]
+        a1["Quản lý account, role và department"]
+        a2["Quản lý resource, schedule và map"]
+        a3["Cấu hình threshold và reminder lead time"]
+        a4["Xem dashboard/report/alert toàn hệ thống"]
+        a5["Thao tác mọi booking trước start"]
+        a6["Nhận alert shared resource"]
+    end
+
+    scopeNote["Scope booking dựa department hiện tại của owner, không dựa created_by/resource.<br/>Resource shared bookable cho mọi active user; department resource cũng không giới hạn người đặt."]
+    manager -. "kế thừa" .-> employee
+    admin -. "kế thừa" .-> manager
+    employee --> e1 & e2 & e3 & e4 & e5
+    manager --> m1 & m2 & m3
+    admin --> a1 & a2 & a3 & a4 & a5 & a6
+    scopeNote -.-> m1
+
+    classDef employeeRole fill:#EFF6FF,stroke:#2563EB,stroke-width:1.5px,color:#0F172A;
+    classDef managerRole fill:#EEF2FF,stroke:#4F46E5,stroke-width:1.5px,color:#0F172A;
+    classDef adminRole fill:#F5F3FF,stroke:#7C3AED,stroke-width:1.5px,color:#0F172A;
+    classDef personal fill:#EFF6FF,stroke:#2563EB,stroke-width:1px,color:#0F172A;
+    classDef department fill:#EEF2FF,stroke:#4F46E5,stroke-width:1px,color:#0F172A;
+    classDef system fill:#F5F3FF,stroke:#7C3AED,stroke-width:1px,color:#0F172A;
+    classDef note fill:#FAFAFA,stroke:#94A3B8,stroke-width:1px,stroke-dasharray:4 3,color:#475569;
+    class employee employeeRole;
+    class manager managerRole;
+    class admin adminRole;
+    class e1,e2,e3,e4,e5 personal;
+    class m1,m2,m3 department;
+    class a1,a2,a3,a4,a5,a6 system;
+    class scopeNote note;

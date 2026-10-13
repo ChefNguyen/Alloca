@@ -1,0 +1,53 @@
+%%{init: {"theme":"base","themeVariables":{"background":"#F8FAFC","actorBkg":"#ECFDF5","actorBorder":"#059669","actorTextColor":"#0F172A","actorLineColor":"#94A3B8","signalColor":"#64748B","signalTextColor":"#0F172A","labelBoxBkgColor":"#FAFAFA","labelBoxBorderColor":"#94A3B8","labelTextColor":"#0F172A","loopTextColor":"#475569","noteBkgColor":"#FAFAFA","noteBorderColor":"#CBD5E1","noteTextColor":"#475569","sequenceNumberColor":"#64748B"}}}%%
+sequenceDiagram
+    autonumber
+    actor Actor as Người tạo booking hoặc người hủy được ủy quyền
+    participant Booking as BookingService
+    participant Scheduler as Spring Scheduler<br/>(best effort khi Render thức)
+    participant Analytics as AnalyticsService
+    participant Notif as NotificationService
+    participant DB as Supabase PostgreSQL
+    participant EmailAPI as Email API qua HTTPS (tùy chọn)
+    participant Web as Ứng dụng React
+
+    rect rgb(248, 250, 252)
+        Note over Actor,Web: Xác nhận booking
+        Actor->>Booking: Tạo booking CONFIRMED
+        Booking->>DB: Trong cùng transaction: lưu booking, history và notification/outbox cho owner
+        Booking->>Notif: Dispatch durable confirmation sau commit
+        opt Email được bật
+            Notif->>EmailAPI: Gửi email xác nhận sau commit
+        end
+    end
+
+    rect rgb(250, 250, 250)
+        Note over Scheduler,DB: Reminder/catch-up idempotent; không bảo đảm đúng giờ khi Render ngủ
+        Scheduler->>DB: Tìm CONFIRMED: due <= now < start, due trong 5 phút; created_at <= due; reminder_sent_at null
+        loop Mỗi booking đủ điều kiện
+            Scheduler->>Notif: bookingReminder(owner)
+            Notif->>DB: Tạo reminder và đánh dấu reminder_sent_at atomically
+        end
+        Note over Scheduler,DB: Booking tạo muộn sau due không nhận reminder hồi tố
+        Scheduler->>Booking: Hoàn tất booking CONFIRMED đã quá end
+        Booking->>DB: Đổi COMPLETED idempotently
+    end
+
+    rect rgb(248, 250, 252)
+        Note over Actor,Web: Hủy booking
+        Actor->>Booking: Hủy CONFIRMED trước start theo quyền owner/Manager/Admin
+        Booking->>DB: Trong cùng transaction: CANCELLED, actor history và notification/outbox
+        Booking->>Notif: Dispatch cancellation sau commit
+        Notif->>DB: Owner và creator nếu khác nhau; deduplicate event/recipient
+    end
+
+    rect rgb(250, 250, 250)
+        Note over Scheduler,DB: Một lần đánh giá alert hiện tại khi service thức lại
+        Scheduler->>Analytics: evaluateCurrentUtilization()
+        Analytics->>DB: Tạo/cập nhật alert theo period + resource dedup
+        Analytics->>Notif: Gửi Admin cho shared; Manager phòng ban sở hữu cho department resource
+    end
+
+    Web->>Notif: GET /api/v1/notifications
+    Notif->>DB: Truy vấn thông báo của current user
+    DB-->>Notif: Danh sách thông báo
+    Notif-->>Web: 200 OK

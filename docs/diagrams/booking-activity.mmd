@@ -1,0 +1,46 @@
+%%{init: {"theme":"base","themeVariables":{"background":"#F8FAFC","primaryColor":"#EEF2FF","primaryBorderColor":"#4F46E5","primaryTextColor":"#0F172A","lineColor":"#64748B","textColor":"#0F172A","clusterBkg":"#F8FAFC","clusterBorder":"#E2E8F0","edgeLabelBackground":"#F8FAFC"},"flowchart":{"curve":"basis","htmlLabels":true}}}%%
+flowchart TD
+    start(["Bắt đầu: xác nhận đặt chỗ"])
+    request["POST /api/v1/bookings<br/>resourceId, startTime, endTime, purpose, userId optional"]
+    authenticated{"Access token hợp lệ<br/>và tài khoản còn active?"}
+    inputValid{"Bắt đầu không ở quá khứ; cùng ngày;<br/>bước 30 phút; 30 phút đến 8 giờ;<br/>không quá 30 ngày trước?"}
+    authorized{"Người đặt được phép đặt cho owner?<br/>Manager chỉ owner cùng phòng ban"}
+    beginTx["Bắt đầu transaction"]
+    lock["Khóa resource<br/>SELECT ... FOR UPDATE"]
+    exists{"Resource tồn tại và không DELETED?"}
+    available{"Resource AVAILABLE?"}
+    inSchedule{"Toàn bộ khoảng nằm trong giờ hoạt động?"}
+    conflict{"Trùng booking CONFIRMED?<br/>start &lt; existing.end và end &gt; existing.start"}
+    insert["Tạo booking CONFIRMED, history<br/>và notification/outbox durable cho owner"]
+    commit["Commit và giải phóng khóa"]
+    success(["201 Created"])
+    rollback["Rollback"]
+    unauthorized(["401 Unauthorized"])
+    forbidden(["403 Forbidden"])
+    badRequest(["400 Invalid booking window"])
+    notFound(["404 Not found"])
+    unavailable(["409 Resource unavailable"])
+    overlap(["409 Booking conflict"])
+
+    start --> request --> authenticated
+    authenticated -- "Không" --> unauthorized
+    authenticated -- "Có" --> inputValid
+    inputValid -- "Không" --> badRequest
+    inputValid -- "Có" --> authorized
+    authorized -- "Không" --> forbidden
+    authorized -- "Có" --> beginTx --> lock --> exists
+    exists -- "Không" --> rollback --> notFound
+    exists -- "Có" --> available
+    available -- "Không" --> rollbackUnavailable["Rollback"] --> unavailable
+    available -- "Có" --> inSchedule
+    inSchedule -- "Không" --> rollbackSchedule["Rollback"] --> badRequest
+    inSchedule -- "Có" --> conflict
+    conflict -- "Có" --> rollbackConflict["Rollback"] --> overlap
+    conflict -- "Không" --> insert --> commit --> success
+
+    classDef success fill:#ECFDF5,stroke:#059669,stroke-width:1px,color:#0F172A;
+    classDef error fill:#FEF2F2,stroke:#DC2626,stroke-width:1px,color:#0F172A;
+    classDef critical fill:#EEF2FF,stroke:#4F46E5,stroke-width:1px,color:#0F172A;
+    class success success;
+    class unauthorized,forbidden,badRequest,notFound,unavailable,overlap error;
+    class lock,conflict critical;

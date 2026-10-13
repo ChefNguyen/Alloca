@@ -1,0 +1,49 @@
+%%{init: {"theme":"base","themeVariables":{"background":"#F8FAFC","actorBkg":"#EFF6FF","actorBorder":"#2563EB","actorTextColor":"#0F172A","actorLineColor":"#94A3B8","signalColor":"#64748B","signalTextColor":"#0F172A","labelBoxBkgColor":"#FAFAFA","labelBoxBorderColor":"#94A3B8","labelTextColor":"#0F172A","loopTextColor":"#475569","noteBkgColor":"#ECFDF5","noteBorderColor":"#6EE7B7","noteTextColor":"#064E3B","sequenceNumberColor":"#64748B"}}}%%
+sequenceDiagram
+    autonumber
+    actor Admin
+    actor User as Người dùng
+    participant Web as Ứng dụng React
+    participant MapAPI as FloorMapController
+    participant Map as FloorMapService
+    participant Booking as BookingService
+    participant R2 as Cloudflare R2
+    participant DB as Supabase PostgreSQL
+
+    rect rgb(248, 250, 252)
+        Note over Admin,DB: Cấu hình sơ đồ mặt bằng
+        Admin->>Web: Chọn ảnh sơ đồ mặt bằng
+        Web->>MapAPI: PUT /api/v1/zones/{zoneId}/floor-map
+        MapAPI->>MapAPI: Xác minh nội dung PNG/JPEG (tối đa 10 MiB)
+        MapAPI->>R2: Tải ảnh hợp lệ qua S3-compatible API
+        R2-->>MapAPI: URL công khai
+        MapAPI->>DB: Cập nhật URL + kích thước ảnh; kiểm tra marker hiện có
+        Admin->>Web: Gán vị trí cho resource
+        Web->>MapAPI: PATCH /api/v1/resources/{resourceId}<br/>(mapPosition)
+        MapAPI->>DB: Kiểm tra biên ảnh và cập nhật tọa độ
+    end
+
+    rect rgb(250, 250, 250)
+        Note over User,DB: Hiển thị trạng thái theo ngày local
+        User->>Web: Mở map theo zone và ngày
+        Web->>MapAPI: GET /api/v1/zones/{zoneId}/map-availability<br/>?date
+        MapAPI->>Map: getDayState(zoneId, localDate)
+        Map->>DB: Lấy resource, schedule và booking CONFIRMED
+        DB-->>Map: Dữ liệu ngày
+        Map-->>MapAPI: green all free; yellow partial; red full; gray suspended; deleted hidden
+        MapAPI-->>Web: 200 OK + trạng thái ngày
+        Web-->>User: Hiển thị map
+
+        User->>Web: Chọn start/end theo lưới 30 phút
+        Web->>MapAPI: GET /api/v1/zones/{zoneId}/map-availability/check<br/>?startTime&endTime
+        MapAPI->>DB: Kiểm tra schedule và booking CONFIRMED cho từng marker
+        alt Resource đã chọn bookable toàn bộ interval
+            MapAPI-->>Web: marker.available = true (xanh)
+            Web->>Booking: POST /api/v1/bookings
+            Booking->>DB: Khóa resource, kiểm tra lại, lưu CONFIRMED
+            Booking-->>Web: 201 Created hoặc 409 Conflict
+        else Không bookable
+            MapAPI-->>Web: marker.available = false (đỏ)
+            Web-->>User: Chọn interval/resource khác
+        end
+    end

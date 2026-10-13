@@ -1,0 +1,46 @@
+%%{init: {"theme":"base","themeVariables":{"background":"#F8FAFC","actorBkg":"#EFF6FF","actorBorder":"#2563EB","actorTextColor":"#0F172A","actorLineColor":"#94A3B8","signalColor":"#64748B","signalTextColor":"#0F172A","labelBoxBkgColor":"#FAFAFA","labelBoxBorderColor":"#94A3B8","labelTextColor":"#0F172A","loopTextColor":"#475569","noteBkgColor":"#FAFAFA","noteBorderColor":"#CBD5E1","noteTextColor":"#475569","sequenceNumberColor":"#64748B"}}}%%
+sequenceDiagram
+    autonumber
+    actor UserA as Nhân viên A
+    actor UserB as Nhân viên B
+    participant API as BookingController
+    participant TxA as BookingService Tx A
+    participant TxB as BookingService Tx B
+    participant DB as PostgreSQL
+    participant Notif as NotificationService
+
+    par Hai yêu cầu gần như đồng thời
+        UserA->>API: POST /api/v1/bookings (cùng resource và thời gian)
+        API->>TxA: createBooking(command A)
+    and
+        UserB->>API: POST /api/v1/bookings (cùng resource và thời gian)
+        API->>TxB: createBooking(command B)
+    end
+
+    Note over API,DB: Mỗi yêu cầu đã xác thực active account và kiểm tra quyền owner/department
+    TxA->>DB: BEGIN
+    TxA->>DB: SELECT resource FOR UPDATE
+    DB-->>TxA: Dòng resource đã được Tx A khóa
+
+    TxB->>DB: BEGIN
+    TxB->>DB: SELECT resource FOR UPDATE
+    Note over TxB,DB: Tx B chờ cùng dòng resource
+
+    TxA->>DB: Kiểm tra AVAILABLE, scope, lịch hoạt động và booking CONFIRMED trùng
+    DB-->>TxA: Hợp lệ; không có booking trùng
+    TxA->>DB: INSERT booking A (CONFIRMED), history và notification/outbox durable cho owner
+    TxA->>DB: COMMIT
+    Note over TxA,DB: Commit giải phóng khóa resource
+    DB-->>TxB: Đã lấy được khóa sau Tx A
+
+    TxA->>Notif: Dispatch xác nhận durable sau commit (email tùy chọn)
+    TxA-->>API: Đã tạo booking A
+    API-->>UserA: 201 Created
+
+    TxB->>DB: Kiểm tra lại booking CONFIRMED bị trùng
+    DB-->>TxB: Booking A bị trùng
+    TxB->>DB: ROLLBACK
+    TxB-->>API: BookingConflictException
+    API-->>UserB: 409 Conflict
+
+    Note over UserA,DB: Chỉ một yêu cầu thành công; booking không bị trùng được lưu

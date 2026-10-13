@@ -1,0 +1,67 @@
+%%{init: {"theme":"base","themeVariables":{"background":"#F8FAFC","actorBkg":"#EFF6FF","actorBorder":"#2563EB","actorTextColor":"#0F172A","actorLineColor":"#94A3B8","signalColor":"#64748B","signalTextColor":"#0F172A","labelBoxBkgColor":"#FAFAFA","labelBoxBorderColor":"#94A3B8","labelTextColor":"#0F172A","loopTextColor":"#475569","noteBkgColor":"#FAFAFA","noteBorderColor":"#CBD5E1","noteTextColor":"#475569","sequenceNumberColor":"#64748B"}}}%%
+sequenceDiagram
+    autonumber
+    actor User as Người dùng
+    participant Web as Ứng dụng React
+    participant API as AuthController
+    participant Security as JWT Security Filter
+    participant Auth as AuthService
+    participant Users as UserRepository
+    participant Tokens as JwtTokenService
+    participant DB as PostgreSQL
+
+    rect rgb(248, 250, 252)
+        Note over User,DB: Đăng nhập
+        User->>Web: Nhập tên đăng nhập và mật khẩu
+        Web->>API: POST /api/v1/auth/login
+        API->>Auth: authenticate(credentials)
+        Auth->>Users: findActiveByUsername(username)
+        Users->>DB: SELECT user, role, is_active, credentials_version
+        DB-->>Users: Bản ghi người dùng
+        Users-->>Auth: Người dùng hoặc rỗng
+        Auth->>Auth: Xác minh BCrypt
+        alt Sai thông tin hoặc tài khoản inactive
+            Auth-->>API: AuthenticationException
+            API-->>Web: 401 Unauthorized
+        else Thông tin hợp lệ
+            Auth->>Tokens: Tạo access + refresh với credentials_version
+            Tokens-->>Auth: Cặp token
+            Auth-->>API: Hồ sơ và cặp token
+            API-->>Web: 200 OK
+        end
+    end
+
+    rect rgb(250, 250, 250)
+        Note over User,DB: Mỗi yêu cầu được ủy quyền
+        Web->>Security: Authorization: Bearer access token
+        Security->>Tokens: Kiểm tra chữ ký, hạn và loại access token
+        Security->>Users: Tải quyền hiện tại và kiểm tra is_active
+        Users->>DB: SELECT is_active, role, department
+        alt Inactive
+            Security-->>Web: 401 Unauthorized
+        else Active
+            Security-->>API: Principal đã xác thực
+            API-->>Web: Phản hồi nghiệp vụ
+        end
+    end
+
+    rect rgb(248, 250, 252)
+        Note over User,DB: Làm mới và đổi mật khẩu
+        Web->>API: POST /api/v1/auth/refresh (refresh token)
+        API->>Tokens: Kiểm tra token và credentials_version
+        API->>Users: Kiểm tra user active và version hiện tại
+        alt Refresh không hợp lệ, inactive hoặc version cũ
+            API-->>Web: 401 Unauthorized; quay lại đăng nhập
+        else Hợp lệ
+            API->>Tokens: Tạo access token mới
+            API-->>Web: 200 OK
+        end
+        User->>API: POST /api/v1/auth/change-password
+        API->>Auth: Đổi password_hash, tăng credentials_version
+        Auth->>DB: UPDATE user trong transaction
+        Note over Auth,Tokens: Mọi refresh token cũ bị vô hiệu do version không còn khớp; access token còn hạn không bị thu hồi chỉ vì đổi password
+        API-->>Web: 204 No Content
+        Web-->>User: Xóa token client và đăng nhập lại
+    end
+
+    Note over Web: Logout client chỉ xóa token cục bộ; không cần API và không có server-side refresh revoke trong MVP

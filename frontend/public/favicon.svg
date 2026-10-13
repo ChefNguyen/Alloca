@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <!-- Minimal White Standing Ant Mascot (Facing Right, Transparent Background) -->
+  <defs>
+    <mask id="antEyeMask">
+      <rect width="48" height="48" fill="#FFFFFF" />
+      <!-- Cut-out eye looking right -->
+      <circle cx="34" cy="17" r="1.4" fill="#000000" />
+    </mask>
+  </defs>
+
+  <g mask="url(#antEyeMask)">
+    <!-- Antennae (Curving up & forward to the right) -->
+    <path d="M 31.5 12 C 33.5 6.5 38 5 41.5 6.5" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" />
+    <path d="M 28.5 12.5 C 29.5 8 33 6 36.5 7" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" />
+
+    <!-- 3 Standing Legs in Profile (Dáng đứng) -->
+    <!-- Front Leg: Stepping forward-right -->
+    <path d="M 25 28 L 29.5 35 L 34.5 41" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+    <!-- Middle Leg: Standing firmly down -->
+    <path d="M 22.5 29 L 23 36 L 24 41" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+    <!-- Hind Leg: Reaching back-down for balance -->
+    <path d="M 20 29 L 16 35 L 13.5 41" stroke="#FFFFFF" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" />
+
+    <!-- Body Segments in Profile (White) -->
+    <!-- Abdomen (Gaster) - Plump rounded segment at the back/left -->
+    <ellipse cx="11.5" cy="27" rx="6.8" ry="8.5" fill="#FFFFFF" transform="rotate(-30 11.5 27)" />
+    <!-- Petiole (Waist) -->
+    <ellipse cx="17.5" cy="26" rx="2" ry="2.5" fill="#FFFFFF" />
+    <!-- Thorax (Middle Body) -->
+    <ellipse cx="23" cy="24.5" rx="4.8" ry="5.8" fill="#FFFFFF" transform="rotate(-15 23 24.5)" />
+    <!-- Neck -->
+    <ellipse cx="27" cy="20.5" rx="2.5" ry="3" fill="#FFFFFF" />
+    <!-- Head - Facing Right with cut-out eye -->
+    <ellipse cx="32" cy="18" rx="6" ry="6.2" fill="#FFFFFF" />
+  </g>
+</svg>

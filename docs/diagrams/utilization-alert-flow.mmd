@@ -1,0 +1,45 @@
+%%{init: {"theme":"base","themeVariables":{"background":"#F8FAFC","actorBkg":"#FEFCE8","actorBorder":"#CA8A04","actorTextColor":"#0F172A","actorLineColor":"#94A3B8","signalColor":"#64748B","signalTextColor":"#0F172A","labelBoxBkgColor":"#FAFAFA","labelBoxBorderColor":"#94A3B8","labelTextColor":"#0F172A","loopTextColor":"#475569","noteBkgColor":"#FFF7ED","noteBorderColor":"#FDBA74","noteTextColor":"#7C2D12","sequenceNumberColor":"#64748B"}}}%%
+sequenceDiagram
+    autonumber
+    participant Scheduler as Spring Scheduler<br/>(best effort khi Render thức)
+    participant Analytics as AnalyticsService
+    participant Resources as ResourceRepository
+    participant Bookings as BookingRepository
+    participant Alerts as AlertRepository
+    participant Notif as NotificationService
+    participant DB as Supabase PostgreSQL
+    actor Recipients as Manager/Admin
+
+    Note over Scheduler,DB: Mỗi ngày đánh giá 7 ngày local đã hoàn tất trước đó; khi thức lại chỉ chạy đánh giá hiện tại, không replay alert cũ
+    Scheduler->>Analytics: evaluateCurrentUtilization()
+    Analytics->>Resources: findVisibleResourcesWithThreshold()
+    Resources->>DB: Resource + threshold override hoặc default 85%
+    DB-->>Analytics: Danh sách resource
+
+    loop Với từng resource
+        Analytics->>Bookings: Sum clipped CONFIRMED + COMPLETED trong period
+        Bookings->>DB: Tổng hợp phần giao với period
+        DB-->>Bookings: booked duration
+        Analytics->>Resources: Sum current configured operating windows trong period
+        Resources->>DB: Đọc schedule hiện hành, không snapshot lịch sử MVP
+        DB-->>Analytics: operating duration denominator
+        alt Denominator bằng 0
+            Analytics->>Analytics: utilization = N/A; không trigger alert
+        else Có denominator
+            Analytics->>Analytics: percent = booked / operating * 100
+            alt Resource SUSPENDED hoặc DELETED
+                Analytics->>Alerts: Resolve active alert với lý do resource unavailable
+            else percent > threshold
+                Analytics->>Alerts: Tạo episode nếu chưa active; nếu OPEN/ACKNOWLEDGED thì cập nhật số liệu/kỳ
+                Alerts->>DB: Tối đa một alert active resource/type; không spam
+                alt Resource shared
+                    Analytics->>Notif: utilizationExceeded(alert, Admin active)
+                else Resource phòng ban
+                    Analytics->>Notif: utilizationExceeded(alert, Manager active phòng ban sở hữu)
+                end
+                Notif-->>Recipients: Cảnh báo vượt ngưỡng mới
+            else percent <= threshold
+                Analytics->>Alerts: Resolve OPEN/ACKNOWLEDGED nếu có
+            end
+        end
+    end

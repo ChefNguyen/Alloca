@@ -1,0 +1,19 @@
+{
+  "accessToken": "eyJhbGciOiJIUzI1NiJ9.access-token",
+  "refreshToken": "eyJhbGciOiJIUzI1NiJ9.refresh-token",
+  "tokenType": "Bearer",
+  "expiresIn": 1800,
+  "refreshExpiresIn": 604800,
+  "user": {
+    "id": "4c7bc935-bf6f-4d73-97f3-53f45f776e2e",
+    "username": "nguyen.van.an",
+    "email": "an.nguyen@example.com",
+    "fullName": "Nguyen Van An",
+    "role": "EMPLOYEE",
+    "isActive": true,
+    "department": {
+      "id": "a4595eca-3bd6-4c42-9f06-bb1a320898d7",
+      "name": "Engineering"
+    }
+  }
+}

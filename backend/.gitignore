@@ -1,0 +1,11 @@
+/target/
+/.tools/
+/.downloads/
+/.m2/
+.env
+.env.*
+!.env.example
+*.log
+.idea/
+*.iml
+.vscode/

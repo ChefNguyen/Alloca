@@ -1,0 +1,175 @@
+%%{init: {"theme":"base","themeVariables":{"background":"#F8FAFC","primaryColor":"#F8FAFC","primaryBorderColor":"#334155","primaryTextColor":"#0F172A","lineColor":"#94A3B8","textColor":"#0F172A","clusterBkg":"#F8FAFC","clusterBorder":"#E2E8F0","entityBkgColor":"#F8FAFC","entityBorderColor":"#334155","attributeBackgroundColorOdd":"#F8FAFC","attributeBackgroundColorEven":"#F8FAFC"}}}%%
+erDiagram
+    DEPARTMENTS ||--o{ USERS : "quản lý"
+    DEPARTMENTS o|--o{ RESOURCES : "sở hữu"
+    ZONES ||--o{ RESOURCES : "chứa"
+    RESOURCES ||--o{ RESOURCE_SCHEDULES : "có giờ hoạt động"
+    RESOURCES ||--o{ BOOKINGS : "được đặt"
+    RESOURCES ||--o{ ALERTS : "phát sinh"
+    USERS ||--o{ BOOKINGS : "chủ booking"
+    USERS ||--o{ BOOKINGS : "tạo hoặc hủy"
+    USERS ||--o{ NOTIFICATIONS : "nhận"
+    USERS o|--o{ ACTIVITY_LOGS : "actor nullable SYSTEM"
+    USERS o|--o{ BOOKING_STATUS_HISTORY : "actor nullable SYSTEM"
+    BOOKINGS ||--o{ BOOKING_STATUS_HISTORY : "theo dõi"
+    BOOKINGS ||--o{ NOTIFICATIONS : "nguồn sự kiện"
+    ALERTS o|--o{ NOTIFICATIONS : "nguồn sự kiện"
+    BOOKINGS ||--o{ NOTIFICATION_OUTBOX : "phát sinh durable"
+    ALERTS ||--o{ NOTIFICATION_OUTBOX : "phát sinh durable"
+
+    DEPARTMENTS {
+        uuid id PK
+        string name UK
+        timestamp created_at
+    }
+
+    USERS {
+        uuid id PK
+        string username UK
+        string email UK
+        string password_hash
+        string full_name
+        string role
+        boolean is_active
+        int credentials_version
+        uuid department_id FK
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    ZONES {
+        uuid id PK
+        string name
+        string floor
+        string building
+        string floor_map_url
+        int floor_map_width
+        int floor_map_height
+    }
+
+    RESOURCES {
+        uuid id PK
+        string name
+        string type
+        int capacity
+        string status
+        string description
+        uuid zone_id FK
+        uuid department_id FK "nullable = shared"
+        float utilization_threshold "nullable override"
+        int map_x
+        int map_y
+        int map_width
+        int map_height
+        timestamp deleted_at
+    }
+
+    RESOURCE_SCHEDULES {
+        uuid id PK
+        uuid resource_id FK
+        int day_of_week
+        time start_time
+        time end_time
+    }
+
+    BOOKINGS {
+        uuid id PK
+        uuid resource_id FK
+        uuid user_id FK "owner"
+        uuid created_by FK
+        uuid cancelled_by FK "nullable"
+        timestamp start_time
+        timestamp end_time
+        string status
+        string purpose
+        string cancel_reason
+        timestamp reminder_sent_at
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    BOOKING_STATUS_HISTORY {
+        uuid id PK
+        uuid booking_id FK
+        string old_status
+        string new_status
+        uuid changed_by FK "nullable = SYSTEM"
+        string reason
+        timestamp changed_at
+    }
+
+    NOTIFICATIONS {
+        uuid id PK
+        uuid user_id FK
+        uuid booking_id FK "nullable"
+        uuid alert_id FK "nullable"
+        string event_type
+        string dedup_key UK
+        string title
+        string message
+        boolean is_read
+        timestamp created_at
+    }
+
+    NOTIFICATION_OUTBOX {
+        uuid id PK
+        uuid booking_id FK "nullable"
+        uuid alert_id FK "nullable"
+        uuid recipient_id FK
+        string event_type
+        string dedup_key UK
+        string payload
+        timestamp available_at
+        timestamp processed_at
+        int attempts
+        timestamp created_at
+    }
+
+    ALERTS {
+        uuid id PK
+        uuid resource_id FK
+        string alert_type
+        date period_start_local
+        date period_end_local
+        string dedup_key UK
+        float threshold_percent
+        float actual_percent "nullable when N/A"
+        int booked_minutes
+        int available_minutes
+        string status "OPEN ACKNOWLEDGED RESOLVED"
+        uuid acknowledged_by FK "nullable"
+        timestamp triggered_at
+        timestamp resolved_at
+        string resolution_reason
+    }
+
+    APP_SETTINGS {
+        int singleton_id PK "always 1"
+        int reminder_lead_minutes
+        timestamp updated_at
+        uuid updated_by FK
+    }
+
+    ACTIVITY_LOGS {
+        uuid id PK
+        uuid user_id FK "nullable = SYSTEM"
+        string action
+        string entity_type
+        uuid entity_id
+        string metadata
+        string ip_address
+        timestamp created_at
+    }
+
+    style DEPARTMENTS fill:#F1F5F9,stroke:#475569,stroke-width:1px,color:#0F172A
+    style USERS fill:#EFF6FF,stroke:#2563EB,stroke-width:1px,color:#0F172A
+    style ZONES fill:#FDF4FF,stroke:#A855F7,stroke-width:1px,color:#0F172A
+    style RESOURCES fill:#ECFDF5,stroke:#059669,stroke-width:1px,color:#0F172A
+    style RESOURCE_SCHEDULES fill:#F0FDFA,stroke:#0F766E,stroke-width:1px,color:#0F172A
+    style BOOKINGS fill:#EEF2FF,stroke:#4F46E5,stroke-width:1px,color:#0F172A
+    style BOOKING_STATUS_HISTORY fill:#F5F3FF,stroke:#7C3AED,stroke-width:1px,color:#0F172A
+    style NOTIFICATIONS fill:#FFF7ED,stroke:#EA580C,stroke-width:1px,color:#0F172A
+    style NOTIFICATION_OUTBOX fill:#FFF7ED,stroke:#C2410C,stroke-width:1px,color:#0F172A
+    style ALERTS fill:#FEF2F2,stroke:#DC2626,stroke-width:1px,color:#0F172A
+    style APP_SETTINGS fill:#FEFCE8,stroke:#CA8A04,stroke-width:1px,color:#0F172A
+    style ACTIVITY_LOGS fill:#F8FAFC,stroke:#64748B,stroke-width:1px,color:#0F172A

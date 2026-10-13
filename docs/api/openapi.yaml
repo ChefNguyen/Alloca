@@ -1,0 +1,1777 @@
+openapi: 3.1.0
+info:
+  title: Alloca API
+  version: 1.0.0
+  license:
+    name: Academic use
+    identifier: LicenseRef-Alloca-Academic
+  description: |
+    Contract cho Phase 1 của Alloca SRBS, bao gồm Auth & RBAC, Resource
+    Management và Booking Engine. Timestamp dùng ISO 8601 và được trả về theo
+    UTC; ngày và giờ hoạt động được hiểu theo múi giờ Asia/Ho_Chi_Minh.
+servers:
+  - url: /api/v1
+    description: Base path tương đối cho môi trường hiện tại
+  - url: https://alloca-api.onrender.com/api/v1
+    description: URL Render mẫu, thay bằng hostname thực tế khi triển khai
+tags:
+  - name: Authentication
+    description: Đăng nhập, refresh token và hồ sơ cá nhân
+  - name: Users
+    description: Quản lý tài khoản, role và phạm vi phòng ban
+  - name: Departments
+    description: Danh mục phòng ban của tổ chức
+  - name: Zones
+    description: Tòa nhà, tầng và khu vực chứa tài nguyên
+  - name: Resources
+    description: Tài nguyên, trạng thái, giờ hoạt động và slot khả dụng
+  - name: Bookings
+    description: Tạo, tra cứu, hủy và theo dõi trạng thái booking
+  - name: Notifications
+    description: Danh sách thông báo, đánh dấu đã đọc và cấu hình tùy chọn nhận thông báo
+  - name: Floor Maps
+    description: Tải sơ đồ tầng, gắn vị trí tài nguyên và kiểm tra khả dụng hai giai đoạn
+  - name: Analytics
+    description: Phân tích sử dụng, xu hướng và báo cáo theo lịch vận hành
+  - name: Alerts
+    description: Cảnh báo sử dụng tài nguyên vượt ngưỡng
+security:
+  - bearerAuth: []
+
+paths:
+  /auth/login:
+    post:
+      tags: [Authentication]
+      operationId: login
+      summary: Đăng nhập bằng username và password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Đăng nhập thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /auth/refresh:
+    post:
+      tags: [Authentication]
+      operationId: refreshAccessToken
+      summary: Cấp access token mới
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200':
+          description: Access token mới
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccessTokenResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /auth/me:
+    get:
+      tags: [Authentication]
+      operationId: getCurrentUser
+      summary: Lấy hồ sơ người dùng hiện tại
+      x-roles: [EMPLOYEE, MANAGER, ADMIN]
+      responses:
+        '200':
+          description: Hồ sơ hiện tại
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    patch:
+      tags: [Authentication]
+      operationId: updateCurrentUser
+      summary: Cập nhật hồ sơ cá nhân
+      x-roles: [EMPLOYEE, MANAGER, ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProfileUpdateRequest' }
+      responses:
+        '200':
+          description: Hồ sơ đã cập nhật
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /auth/change-password:
+    post:
+      tags: [Authentication]
+      operationId: changePassword
+      summary: Đổi mật khẩu của người dùng hiện tại
+      x-roles: [EMPLOYEE, MANAGER, ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChangePasswordRequest' }
+      responses:
+        '204': { description: Đổi mật khẩu thành công }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /users:
+    get:
+      tags: [Users]
+      operationId: listUsers
+      summary: Liệt kê người dùng trong phạm vi quyền
+      description: Manager chỉ nhận người dùng thuộc phòng ban của mình; Admin nhận toàn hệ thống.
+      x-roles: [MANAGER, ADMIN]
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Size' }
+        - { $ref: '#/components/parameters/Sort' }
+        - name: q
+          in: query
+          schema: { type: string, maxLength: 100 }
+          description: Tìm theo username, họ tên hoặc email
+        - name: role
+          in: query
+          schema: { $ref: '#/components/schemas/Role' }
+        - name: departmentId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: isActive
+          in: query
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: Danh sách người dùng
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PagedUsers' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Users]
+      operationId: createUser
+      summary: Tạo tài khoản người dùng
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UserCreateRequest' }
+      responses:
+        '201':
+          description: Tài khoản đã tạo
+          headers:
+            Location:
+              schema: { type: string, format: uri-reference }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /users/{userId}:
+    parameters:
+      - { $ref: '#/components/parameters/UserId' }
+    get:
+      tags: [Users]
+      operationId: getUser
+      summary: Lấy chi tiết người dùng
+      description: Manager chỉ được xem người dùng trong cùng phòng ban.
+      x-roles: [MANAGER, ADMIN]
+      responses:
+        '200':
+          description: Chi tiết người dùng
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Users]
+      operationId: updateUser
+      summary: Cập nhật tài khoản người dùng
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UserUpdateRequest' }
+      responses:
+        '200':
+          description: Tài khoản đã cập nhật
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      tags: [Users]
+      operationId: deactivateUser
+      summary: Vô hiệu hóa tài khoản
+      description: Thực hiện soft delete bằng cách đặt isActive=false.
+      x-roles: [ADMIN]
+      responses:
+        '204': { description: Tài khoản đã bị vô hiệu hóa }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /users/{userId}/access:
+    parameters:
+      - { $ref: '#/components/parameters/UserId' }
+    patch:
+      tags: [Users]
+      operationId: updateUserAccess
+      summary: Gán role và phòng ban
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UserAccessUpdateRequest' }
+      responses:
+        '200':
+          description: Quyền truy cập đã cập nhật
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /departments:
+    get:
+      tags: [Departments]
+      operationId: listDepartments
+      summary: Liệt kê phòng ban
+      x-roles: [EMPLOYEE, MANAGER, ADMIN]
+      responses:
+        '200':
+          description: Danh sách phòng ban
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Department' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Departments]
+      operationId: createDepartment
+      summary: Tạo phòng ban
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DepartmentWriteRequest' }
+      responses:
+        '201':
+          description: Phòng ban đã tạo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Department' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /departments/{departmentId}:
+    parameters:
+      - { $ref: '#/components/parameters/DepartmentId' }
+    get:
+      tags: [Departments]
+      operationId: getDepartment
+      summary: Lấy chi tiết phòng ban
+      x-roles: [EMPLOYEE, MANAGER, ADMIN]
+      responses:
+        '200':
+          description: Chi tiết phòng ban
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Department' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Departments]
+      operationId: updateDepartment
+      summary: Cập nhật phòng ban
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DepartmentWriteRequest' }
+      responses:
+        '200':
+          description: Phòng ban đã cập nhật
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Department' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      tags: [Departments]
+      operationId: deleteDepartment
+      summary: Xóa phòng ban không còn được tham chiếu
+      x-roles: [ADMIN]
+      responses:
+        '204': { description: Phòng ban đã xóa }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /zones:
+    get:
+      tags: [Zones]
+      operationId: listZones
+      summary: Liệt kê khu vực
+      x-roles: [EMPLOYEE, MANAGER, ADMIN]
+      parameters:
+        - name: building
+          in: query
+          schema: { type: string, maxLength: 100 }
+        - name: floor
+          in: query
+          schema: { type: string, maxLength: 50 }
+      responses:
+        '200':
+          description: Danh sách khu vực
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Zone' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Zones]
+      operationId: createZone
+      summary: Tạo khu vực
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ZoneWriteRequest' }
+      responses:
+        '201':
+          description: Khu vực đã tạo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Zone' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /zones/{zoneId}:
+    parameters:
+      - { $ref: '#/components/parameters/ZoneId' }
+    get:
+      tags: [Zones]
+      operationId: getZone
+      summary: Lấy chi tiết khu vực
+      x-roles: [EMPLOYEE, MANAGER, ADMIN]
+      responses:
+        '200':
+          description: Chi tiết khu vực
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Zone' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Zones]
+      operationId: updateZone
+      summary: Cập nhật khu vực
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ZoneWriteRequest' }
+      responses:
+        '200':
+          description: Khu vực đã cập nhật
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Zone' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Zones]
+      operationId: deleteZone
+      summary: Xóa khu vực không chứa tài nguyên
+      x-roles: [ADMIN]
+      responses:
+        '204': { description: Khu vực đã xóa }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /resources:
+    get:
+      tags: [Resources]
+      operationId: listResources
+      summary: Tìm kiếm và lọc tài nguyên
+      description: Tài nguyên DELETED không hiển thị qua danh sách người dùng; lịch sử booking và audit vẫn giữ tham chiếu resource.
+      x-roles: [EMPLOYEE, MANAGER, ADMIN]
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Size' }
+        - { $ref: '#/components/parameters/Sort' }
+        - name: q
+          in: query
+          schema: { type: string, maxLength: 100 }
+        - name: type
+          in: query
+          schema: { $ref: '#/components/schemas/ResourceType' }
+        - name: zoneId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: departmentId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/ResourceStatus' }
+        - name: minCapacity
+          in: query
+          schema: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: Danh sách tài nguyên
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PagedResources' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [Resources]
+      operationId: createResource
+      summary: Tạo tài nguyên
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ResourceCreateRequest' }
+      responses:
+        '201':
+          description: Tài nguyên đã tạo
+          headers:
+            Location:
+              schema: { type: string, format: uri-reference }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Resource' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /resources/{resourceId}:
+    parameters:
+      - { $ref: '#/components/parameters/ResourceId' }
+    get:
+      tags: [Resources]
+      operationId: getResource
+      summary: Lấy chi tiết tài nguyên
+      x-roles: [EMPLOYEE, MANAGER, ADMIN]
+      responses:
+        '200':
+          description: Chi tiết tài nguyên
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ResourceDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Resources]
+      operationId: updateResource
+      summary: Cập nhật thông tin tài nguyên
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ResourceUpdateRequest' }
+      responses:
+        '200':
+          description: Tài nguyên đã cập nhật
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ResourceDetail' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      tags: [Resources]
+      operationId: deleteResource
+      summary: Xóa mềm tài nguyên
+      description: Chỉ cho phép khi resource là SUSPENDED và không có booking CONFIRMED đang diễn ra hoặc trong tương lai.
+      x-roles: [ADMIN]
+      responses:
+        '204': { description: Tài nguyên chuyển sang DELETED }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /resources/{resourceId}/status:
+    parameters:
+      - { $ref: '#/components/parameters/ResourceId' }
+    patch:
+      tags: [Resources]
+      operationId: updateResourceStatus
+      summary: Chuyển trạng thái tài nguyên
+      description: Hỗ trợ AVAILABLE sang SUSPENDED và SUSPENDED sang AVAILABLE; xóa dùng endpoint DELETE.
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ResourceStatusUpdateRequest' }
+      responses:
+        '200':
+          description: Trạng thái đã cập nhật
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Resource' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /zones/{zoneId}/floor-map:
+    parameters:
+      - { $ref: '#/components/parameters/ZoneId' }
+    put:
+      tags: [Floor Maps]
+      operationId: uploadZoneFloorMap
+      summary: Tải lên hoặc thay thế sơ đồ tầng
+      description: Chỉ chấp nhận PNG/JPEG được xác minh theo nội dung thực tế, tối đa 10 MiB. Thay ảnh phải từ chối hoặc yêu cầu đặt lại mapPosition không còn nằm trong ảnh mới.
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          image/png:
+            schema: { type: string, format: binary, maxLength: 10485760 }
+          image/jpeg:
+            schema: { type: string, format: binary, maxLength: 10485760 }
+      responses:
+        '200':
+          description: Sơ đồ tầng đã được lưu
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Zone' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /zones/{zoneId}/map-availability:
+    parameters:
+      - { $ref: '#/components/parameters/ZoneId' }
+    get:
+      tags: [Floor Maps]
+      operationId: getZoneMapDailyAvailability
+      summary: Lấy marker khả dụng theo ngày trên sơ đồ tầng
+      description: "Giai đoạn 1: trạng thái ngày theo slot có thể đặt được (không bao gồm thời gian đã qua hoặc ngoài horizon). Client phải gọi kiểm tra khoảng cụ thể ở giai đoạn 2 trước khi cho phép tạo booking."
+      x-roles: [EMPLOYEE, MANAGER, ADMIN]
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Marker khả dụng ngày theo Asia/Ho_Chi_Minh
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ZoneMapDailyAvailability' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /zones/{zoneId}/map-availability/check:
+    parameters:
+      - { $ref: '#/components/parameters/ZoneId' }
+    get:
+      tags: [Floor Maps]
+      operationId: checkZoneMapIntervalAvailability
+      summary: Đánh giá lại khả dụng cho khoảng đã chọn
+      description: "Giai đoạn 2: trả available chỉ khi toàn bộ khoảng có thể đặt được; kết quả không giữ chỗ và POST /bookings luôn kiểm tra lại."
+      x-roles: [EMPLOYEE, MANAGER, ADMIN]
+      parameters:
+        - name: startTime
+          in: query
+          required: true
+          schema: { type: string, format: date-time }
+        - name: endTime
+          in: query
+          required: true
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Khả dụng theo khoảng; timestamp trả về UTC
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ZoneMapIntervalAvailability' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /resources/{resourceId}/schedules:
+    parameters:
+      - { $ref: '#/components/parameters/ResourceId' }
+    get:
+      tags: [Resources]
+      operationId: getResourceSchedules
+      summary: Lấy giờ hoạt động của tài nguyên
+      x-roles: [EMPLOYEE, MANAGER, ADMIN]
+      responses:
+        '200':
+          description: Lịch hoạt động hằng tuần
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ResourceSchedule' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Resources]
+      operationId: replaceResourceSchedules
+      summary: Thay toàn bộ giờ hoạt động của tài nguyên
+      description: Từ chối thay đổi nếu lịch mới làm bất kỳ booking CONFIRMED đang diễn ra hoặc tương lai nào nằm ngoài giờ hoạt động; ErrorResponse.details.conflictingBookingIds liệt kê booking cần Admin xử lý. MVP không lưu snapshot lịch sử schedule.
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ResourceScheduleReplaceRequest' }
+      responses:
+        '200':
+          description: Lịch hoạt động đã cập nhật
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ResourceSchedule' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /resources/{resourceId}/availability:
+    parameters:
+      - { $ref: '#/components/parameters/ResourceId' }
+    get:
+      tags: [Resources]
+      operationId: getResourceAvailability
+      summary: Lấy slot trống của tài nguyên theo ngày
+      x-roles: [EMPLOYEE, MANAGER, ADMIN]
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: slotMinutes
+          in: query
+          description: Kích thước phân mảnh trả về; không thay đổi quy tắc booking luôn theo lưới 30 phút.
+          schema: { type: integer, const: 30, default: 30 }
+      responses:
+        '200':
+          description: Giờ hoạt động và các slot còn trống
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ResourceAvailability' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /notifications:
+    get:
+      tags: [Notifications]
+      operationId: listNotifications
+      summary: Liệt kê thông báo của người dùng hiện tại
+      x-roles: [EMPLOYEE, MANAGER, ADMIN]
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Size' }
+        - { $ref: '#/components/parameters/Sort' }
+        - name: read
+          in: query
+          schema: { type: boolean }
+        - name: type
+          in: query
+          schema: { $ref: '#/components/schemas/NotificationType' }
+      responses:
+        '200':
+          description: Thông báo của người dùng hiện tại
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PagedNotifications' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /notifications/{notificationId}/read:
+    parameters:
+      - { $ref: '#/components/parameters/NotificationId' }
+    post:
+      tags: [Notifications]
+      operationId: markNotificationRead
+      summary: Đánh dấu thông báo đã đọc
+      x-roles: [EMPLOYEE, MANAGER, ADMIN]
+      responses:
+        '204': { description: Thông báo đã được đánh dấu là đã đọc }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /notification-settings:
+    get:
+      tags: [Notifications]
+      operationId: getNotificationSettings
+      summary: Lấy cấu hình reminder toàn hệ thống
+      x-roles: [ADMIN]
+      responses:
+        '200':
+          description: Cấu hình reminder toàn hệ thống
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NotificationSettings' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    put:
+      tags: [Notifications]
+      operationId: replaceNotificationSettings
+      summary: Cập nhật cấu hình reminder toàn hệ thống
+      description: Áp dụng cho booking chưa được nhắc; không gửi lại booking đã nhắc.
+      x-roles: [ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NotificationSettingsWriteRequest' }
+      responses:
+        '200':
+          description: Cấu hình đã cập nhật
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NotificationSettings' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /analytics/utilization:
+    get:
+      tags: [Analytics]
+      operationId: getUtilizationAnalytics
+      summary: Phân tích tỷ lệ sử dụng theo lịch vận hành
+      description: Chỉ dùng thời lượng đã lên lịch của CONFIRMED và COMPLETED, cắt tại biên report và bỏ CANCELLED. Mẫu số là giờ hoạt động của schedule hiện cấu hình (không có snapshot lịch sử); mẫu số bằng 0 trả utilization=null.
+      x-roles: [MANAGER, ADMIN]
+      parameters:
+        - { $ref: '#/components/parameters/ReportFrom' }
+        - { $ref: '#/components/parameters/ReportTo' }
+        - name: resourceId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: departmentId
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Kết quả utilization; Manager bị giới hạn phạm vi resource thuộc phòng ban của mình
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UtilizationReport' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /analytics/trends:
+    get:
+      tags: [Analytics]
+      operationId: getBookingTrends
+      summary: Lấy xu hướng booking theo ngày bắt đầu địa phương
+      description: Đếm booking theo ngày startTime trong kỳ, phân nhóm status; không phải số request tạo theo createdAt.
+      x-roles: [MANAGER, ADMIN]
+      parameters:
+        - { $ref: '#/components/parameters/ReportFrom' }
+        - { $ref: '#/components/parameters/ReportTo' }
+        - name: resourceId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: departmentId
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Điểm xu hướng theo ngày startTime tại Asia/Ho_Chi_Minh
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BookingTrendReport' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /reports/utilization:
+    get:
+      tags: [Analytics]
+      operationId: getUtilizationReport
+      summary: Xuất báo cáo utilization theo kỳ
+      description: Báo cáo dựa trên booking scheduled, không dựa trên actual usage.
+      x-roles: [MANAGER, ADMIN]
+      parameters:
+        - { $ref: '#/components/parameters/ReportFrom' }
+        - { $ref: '#/components/parameters/ReportTo' }
+        - name: resourceId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: departmentId
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Báo cáo utilization theo resource
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UtilizationReport' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /alerts/utilization:
+    get:
+      tags: [Alerts]
+      operationId: listUtilizationAlerts
+      summary: Liệt kê cảnh báo utilization vượt ngưỡng
+      description: "Mặc định triển khai: đánh giá rolling bảy ngày địa phương đã hoàn thành [today-7, today); chỉ cảnh báo khi utilization lớn hơn ngưỡng. Ngưỡng mặc định 85%, resource có thể ghi đè. Một resource/type chỉ có tối đa một alert active (OPEN/ACKNOWLEDGED); vi phạm tiếp diễn chỉ cập nhật alert, không tạo notification trùng."
+      x-roles: [MANAGER, ADMIN]
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Size' }
+        - name: resourceId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: departmentId
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Alert thuộc phạm vi quyền; shared-resource alert dành cho Admin, departmental alert dành cho Manager của phòng ban đó
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PagedUtilizationAlerts' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+
+  /alerts/{alertId}/acknowledge:
+    parameters:
+      - { $ref: '#/components/parameters/AlertId' }
+    post:
+      tags: [Alerts]
+      operationId: acknowledgeUtilizationAlert
+      summary: Xác nhận đã xem cảnh báo utilization
+      description: ACK không giải quyết tình trạng vượt ngưỡng; alert vẫn active và được cập nhật nếu còn vi phạm.
+      x-roles: [MANAGER, ADMIN]
+      responses:
+        '200':
+          description: Cảnh báo đã được ACKNOWLEDGED
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UtilizationAlert' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /bookings:
+    get:
+      tags: [Bookings]
+      operationId: listBookings
+      summary: Lấy lịch sử booking theo phạm vi role
+      description: Employee chỉ xem bản thân, Manager xem phòng ban, Admin xem toàn hệ thống.
+      x-roles: [EMPLOYEE, MANAGER, ADMIN]
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Size' }
+        - { $ref: '#/components/parameters/Sort' }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+        - name: resourceId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: userId
+          in: query
+          schema: { type: string, format: uuid }
+          description: Chỉ dùng để thu hẹp phạm vi đã được role cho phép
+        - name: departmentId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/BookingStatus' }
+      responses:
+        '200':
+          description: Danh sách booking
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PagedBookings' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Bookings]
+      operationId: createBooking
+      summary: Tạo booking
+      description: userId bỏ trống nghĩa là đặt cho bản thân. Manager scope dựa trên department của booking owner; shared resource (departmentId=null) bookable cho mọi tài khoản active. startTime/endTime phải theo biên 30 phút tại Asia/Ho_Chi_Minh, kéo dài 30 phút đến 8 giờ, cùng một ngày địa phương, không ở quá khứ và không quá 30 ngày địa phương tính từ hôm nay.
+      x-roles: [EMPLOYEE, MANAGER, ADMIN]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BookingCreateRequest' }
+      responses:
+        '201':
+          description: Booking đã được xác nhận
+          headers:
+            Location:
+              schema: { type: string, format: uri-reference }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Booking' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /bookings/{bookingId}:
+    parameters:
+      - { $ref: '#/components/parameters/BookingId' }
+    get:
+      tags: [Bookings]
+      operationId: getBooking
+      summary: Lấy chi tiết booking
+      x-roles: [EMPLOYEE, MANAGER, ADMIN]
+      responses:
+        '200':
+          description: Chi tiết booking trong phạm vi quyền
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BookingDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /bookings/{bookingId}/cancel:
+    parameters:
+      - { $ref: '#/components/parameters/BookingId' }
+    post:
+      tags: [Bookings]
+      operationId: cancelBooking
+      summary: Hủy booking trước giờ bắt đầu
+      description: Chỉ owner, Manager có department hiện tại trùng department của owner, hoặc Admin được hủy; tất cả chỉ khi booking CONFIRMED và trước start. Creator khác owner chỉ nhận thông báo bổ sung, không có quyền hủy riêng; không gửi trùng cho owner.
+      x-roles: [EMPLOYEE, MANAGER, ADMIN]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BookingCancelRequest' }
+      responses:
+        '204': { description: Booking đã chuyển sang CANCELLED }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /bookings/{bookingId}/history:
+    parameters:
+      - { $ref: '#/components/parameters/BookingId' }
+    get:
+      tags: [Bookings]
+      operationId: getBookingStatusHistory
+      summary: Lấy lịch sử chuyển trạng thái booking
+      x-roles: [EMPLOYEE, MANAGER, ADMIN]
+      responses:
+        '200':
+          description: Lịch sử trạng thái trong phạm vi quyền
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/BookingStatusHistory' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 0, default: 0 }
+    Size:
+      name: size
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    Sort:
+      name: sort
+      in: query
+      description: Dạng field,asc hoặc field,desc
+      schema: { type: string, default: 'createdAt,desc' }
+    UserId:
+      name: userId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    DepartmentId:
+      name: departmentId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ZoneId:
+      name: zoneId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ResourceId:
+      name: resourceId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    BookingId:
+      name: bookingId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    NotificationId:
+      name: notificationId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    AlertId:
+      name: alertId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ReportFrom:
+      name: from
+      in: query
+      required: true
+      description: Ngày bắt đầu local Asia/Ho_Chi_Minh, inclusive.
+      schema: { type: string, format: date }
+    ReportTo:
+      name: to
+      in: query
+      required: true
+      description: Ngày kết thúc local Asia/Ho_Chi_Minh, exclusive và phải sau from.
+      schema: { type: string, format: date }
+
+  responses:
+    BadRequest:
+      description: Dữ liệu đầu vào không hợp lệ
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Unauthorized:
+      description: Thiếu token, token hết hạn hoặc không hợp lệ
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Forbidden:
+      description: Không đủ role hoặc vượt phạm vi dữ liệu
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    NotFound:
+      description: Không tìm thấy tài nguyên được yêu cầu
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Conflict:
+      description: Xung đột trạng thái, dữ liệu duy nhất hoặc thời gian booking
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    InternalServerError:
+      description: Lỗi nội bộ không dự kiến
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  schemas:
+    Role:
+      type: string
+      enum: [EMPLOYEE, MANAGER, ADMIN]
+    ResourceType:
+      type: string
+      enum: [ROOM, EQUIPMENT, DESK]
+    ResourceStatus:
+      type: string
+      enum: [AVAILABLE, SUSPENDED, DELETED]
+    BookingStatus:
+      type: string
+      enum: [CONFIRMED, CANCELLED, COMPLETED]
+    DayOfWeek:
+      type: string
+      enum: [MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY, SUNDAY]
+    NotificationType:
+      type: string
+      enum: [BOOKING_CONFIRMED, BOOKING_REMINDER, BOOKING_CANCELLED, UTILIZATION_ALERT]
+
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [username, password]
+      properties:
+        username: { type: string, minLength: 3, maxLength: 50, example: nguyen.van.an }
+        password: { type: string, minLength: 8, maxLength: 100, format: password }
+    RefreshTokenRequest:
+      type: object
+      additionalProperties: false
+      required: [refreshToken]
+      properties:
+        refreshToken: { type: string, minLength: 20 }
+    AccessTokenResponse:
+      type: object
+      required: [accessToken, tokenType, expiresIn]
+      properties:
+        accessToken: { type: string }
+        tokenType: { type: string, const: Bearer }
+        expiresIn: { type: integer, const: 1800, description: Số giây }
+    LoginResponse:
+      allOf:
+        - { $ref: '#/components/schemas/AccessTokenResponse' }
+        - type: object
+          required: [refreshToken, refreshExpiresIn, user]
+          properties:
+            refreshToken: { type: string }
+            refreshExpiresIn: { type: integer, const: 604800, description: Số giây }
+            user: { $ref: '#/components/schemas/User' }
+    ProfileUpdateRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        fullName: { type: string, minLength: 1, maxLength: 100 }
+        email: { type: string, format: email, maxLength: 254 }
+    ChangePasswordRequest:
+      type: object
+      additionalProperties: false
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword: { type: string, minLength: 8, maxLength: 100, format: password }
+        newPassword: { type: string, minLength: 8, maxLength: 100, format: password }
+
+    DepartmentSummary:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+    Department:
+      allOf:
+        - { $ref: '#/components/schemas/DepartmentSummary' }
+        - type: object
+          required: [createdAt]
+          properties:
+            createdAt: { type: string, format: date-time }
+    DepartmentWriteRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+
+    UserSummary:
+      type: object
+      required: [id, username, fullName, role]
+      properties:
+        id: { type: string, format: uuid }
+        username: { type: string }
+        fullName: { type: string }
+        role: { $ref: '#/components/schemas/Role' }
+    User:
+      allOf:
+        - { $ref: '#/components/schemas/UserSummary' }
+        - type: object
+          required: [email, isActive, createdAt]
+          properties:
+            email: { type: string, format: email }
+            isActive: { type: boolean }
+            department:
+              oneOf:
+                - { $ref: '#/components/schemas/DepartmentSummary' }
+                - { type: 'null' }
+            createdAt: { type: string, format: date-time }
+    UserCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [username, email, password, fullName, role]
+      properties:
+        username: { type: string, minLength: 3, maxLength: 50, pattern: '^[a-zA-Z0-9._-]+$' }
+        email: { type: string, format: email, maxLength: 254 }
+        password: { type: string, minLength: 8, maxLength: 100, format: password }
+        fullName: { type: string, minLength: 1, maxLength: 100 }
+        role: { $ref: '#/components/schemas/Role' }
+        departmentId:
+          type: [string, 'null']
+          format: uuid
+        isActive: { type: boolean, default: true }
+    UserUpdateRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        email: { type: string, format: email, maxLength: 254 }
+        fullName: { type: string, minLength: 1, maxLength: 100 }
+        isActive: { type: boolean }
+        newPassword: { type: string, minLength: 8, maxLength: 100, format: password }
+    UserAccessUpdateRequest:
+      type: object
+      additionalProperties: false
+      required: [role, departmentId]
+      properties:
+        role: { $ref: '#/components/schemas/Role' }
+        departmentId:
+          type: [string, 'null']
+          format: uuid
+    PagedUsers:
+      type: object
+      required: [items, page]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/User' }
+        page: { $ref: '#/components/schemas/PageMetadata' }
+
+    ZoneSummary:
+      type: object
+      required: [id, name, floor, building]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        floor: { type: string }
+        building: { type: string }
+    Zone:
+      allOf:
+        - { $ref: '#/components/schemas/ZoneSummary' }
+        - type: object
+          properties:
+            floorMapUrl:
+              type: [string, 'null']
+              format: uri
+              readOnly: true
+    ZoneWriteRequest:
+      type: object
+      additionalProperties: false
+      required: [name, floor, building]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        floor: { type: string, minLength: 1, maxLength: 50 }
+        building: { type: string, minLength: 1, maxLength: 100 }
+
+    MapPosition:
+      type: object
+      required: [x, y, width, height]
+      properties:
+        x: { type: integer, minimum: 0 }
+        y: { type: integer, minimum: 0 }
+        width: { type: integer, minimum: 1 }
+        height: { type: integer, minimum: 1 }
+    ZoneMapAvailabilityMarker:
+      type: object
+      required: [resourceId, status, mapPosition, availability]
+      properties:
+        resourceId: { type: string, format: uuid }
+        status: { $ref: '#/components/schemas/ResourceStatus' }
+        mapPosition: { $ref: '#/components/schemas/MapPosition' }
+        availability:
+          type: string
+          enum: [AVAILABLE, PARTIALLY_AVAILABLE, UNAVAILABLE, UNAVAILABLE_SUSPENDED]
+          description: Kết quả sơ bộ theo ngày; client vẫn phải gọi kiểm tra khoảng cụ thể.
+    ZoneMapDailyAvailability:
+      type: object
+      required: [zoneId, date, timezone, markers]
+      properties:
+        zoneId: { type: string, format: uuid }
+        date: { type: string, format: date }
+        timezone: { type: string, const: Asia/Ho_Chi_Minh }
+        markers:
+          type: array
+          items: { $ref: '#/components/schemas/ZoneMapAvailabilityMarker' }
+    ZoneMapIntervalAvailabilityMarker:
+      type: object
+      required: [resourceId, status, mapPosition, available]
+      properties:
+        resourceId: { type: string, format: uuid }
+        status: { $ref: '#/components/schemas/ResourceStatus' }
+        mapPosition: { $ref: '#/components/schemas/MapPosition' }
+        available: { type: boolean }
+    ZoneMapIntervalAvailability:
+      type: object
+      required: [zoneId, timezone, startTime, endTime, markers]
+      properties:
+        zoneId: { type: string, format: uuid }
+        timezone: { type: string, const: Asia/Ho_Chi_Minh }
+        startTime: { type: string, format: date-time }
+        endTime: { type: string, format: date-time }
+        markers:
+          type: array
+          items: { $ref: '#/components/schemas/ZoneMapIntervalAvailabilityMarker' }
+    Resource:
+      type: object
+      required: [id, name, type, capacity, status, utilizationThreshold]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        type: { $ref: '#/components/schemas/ResourceType' }
+        capacity: { type: integer, minimum: 1 }
+        status: { $ref: '#/components/schemas/ResourceStatus' }
+        description:
+          type: [string, 'null']
+        zone:
+          oneOf:
+            - { $ref: '#/components/schemas/ZoneSummary' }
+            - { type: 'null' }
+        department:
+          oneOf:
+            - { $ref: '#/components/schemas/DepartmentSummary' }
+            - { type: 'null' }
+        utilizationThreshold: { type: number, format: float, minimum: 0, maximum: 100, default: 85 }
+        mapPosition:
+          oneOf:
+            - { $ref: '#/components/schemas/MapPosition' }
+            - { type: 'null' }
+          description: Tọa độ pixel theo ảnh gốc; API xác thực x/y/width/height nằm trong kích thước floor map hiện tại.
+    ResourceDetail:
+      allOf:
+        - { $ref: '#/components/schemas/Resource' }
+        - type: object
+          required: [schedules]
+          properties:
+            schedules:
+              type: array
+              items: { $ref: '#/components/schemas/ResourceSchedule' }
+    ResourceCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [name, type, capacity]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        type: { $ref: '#/components/schemas/ResourceType' }
+        capacity: { type: integer, minimum: 1, maximum: 10000 }
+        status:
+          type: string
+          enum: [AVAILABLE, SUSPENDED]
+          default: AVAILABLE
+        description: { type: string, maxLength: 2000 }
+        zoneId:
+          type: [string, 'null']
+          format: uuid
+        departmentId:
+          type: [string, 'null']
+          format: uuid
+        utilizationThreshold: { type: number, format: float, minimum: 0, maximum: 100, default: 85 }
+    ResourceUpdateRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100 }
+        type: { $ref: '#/components/schemas/ResourceType' }
+        capacity: { type: integer, minimum: 1, maximum: 10000 }
+        description:
+          type: [string, 'null']
+          maxLength: 2000
+        zoneId:
+          type: [string, 'null']
+          format: uuid
+        departmentId:
+          type: [string, 'null']
+          format: uuid
+        utilizationThreshold: { type: number, format: float, minimum: 0, maximum: 100 }
+        mapPosition:
+          oneOf:
+            - { $ref: '#/components/schemas/MapPosition' }
+            - { type: 'null' }
+          description: Chỉ Admin; resource phải thuộc zone có floor map. API xác thực hình chữ nhật nằm trong ảnh hiện tại.
+    ResourceStatusUpdateRequest:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [AVAILABLE, SUSPENDED]
+        reason: { type: string, maxLength: 500 }
+    ResourceSchedule:
+      type: object
+      required: [id, dayOfWeek, startTime, endTime]
+      properties:
+        id: { type: string, format: uuid }
+        dayOfWeek: { $ref: '#/components/schemas/DayOfWeek' }
+        startTime: { type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$', example: '08:00:00' }
+        endTime: { type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$', example: '17:00:00' }
+    ResourceScheduleInput:
+      type: object
+      additionalProperties: false
+      required: [dayOfWeek, startTime, endTime]
+      properties:
+        dayOfWeek: { $ref: '#/components/schemas/DayOfWeek' }
+        startTime: { type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$', example: '08:00:00' }
+        endTime: { type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$', example: '17:00:00' }
+    ResourceScheduleReplaceRequest:
+      type: object
+      additionalProperties: false
+      required: [schedules]
+      properties:
+        schedules:
+          type: array
+          minItems: 1
+          maxItems: 21
+          items: { $ref: '#/components/schemas/ResourceScheduleInput' }
+    TimeSlot:
+      type: object
+      required: [startTime, endTime]
+      properties:
+        startTime: { type: string, format: date-time }
+        endTime: { type: string, format: date-time }
+    ResourceAvailability:
+      type: object
+      required: [resourceId, date, timezone, resourceStatus, operatingWindows, availableSlots]
+      properties:
+        resourceId: { type: string, format: uuid }
+        date: { type: string, format: date }
+        timezone: { type: string, const: Asia/Ho_Chi_Minh }
+        resourceStatus: { $ref: '#/components/schemas/ResourceStatus' }
+        operatingWindows:
+          type: array
+          items: { $ref: '#/components/schemas/TimeSlot' }
+        availableSlots:
+          type: array
+          items: { $ref: '#/components/schemas/TimeSlot' }
+    PagedResources:
+      type: object
+      required: [items, page]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Resource' }
+        page: { $ref: '#/components/schemas/PageMetadata' }
+
+    Notification:
+      type: object
+      required: [id, type, title, body, isRead, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        type: { $ref: '#/components/schemas/NotificationType' }
+        title: { type: string }
+        body: { type: string }
+        bookingId:
+          type: [string, 'null']
+          format: uuid
+        resourceId:
+          type: [string, 'null']
+          format: uuid
+        isRead: { type: boolean }
+        readAt:
+          type: [string, 'null']
+          format: date-time
+        createdAt: { type: string, format: date-time }
+    PagedNotifications:
+      type: object
+      required: [items, page]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Notification' }
+        page: { $ref: '#/components/schemas/PageMetadata' }
+    NotificationSettings:
+      type: object
+      required: [reminderMinutesBefore]
+      properties:
+        reminderMinutesBefore:
+          type: integer
+          minimum: 1
+          maximum: 1440
+          default: 15
+          description: Mặc định triển khai là 15 phút. Áp dụng toàn hệ thống cho booking chưa được nhắc; không có per-user opt-out trong Phase 1.
+    NotificationSettingsWriteRequest:
+      type: object
+      additionalProperties: false
+      required: [reminderMinutesBefore]
+      properties:
+        reminderMinutesBefore: { type: integer, minimum: 1, maximum: 1440, default: 15 }
+
+    BookingCreateRequest:
+      type: object
+      additionalProperties: false
+      required: [resourceId, startTime, endTime]
+      properties:
+        resourceId: { type: string, format: uuid }
+        userId:
+          type: [string, 'null']
+          format: uuid
+          description: Bỏ trống để đặt cho người đang đăng nhập
+        startTime: { type: string, format: date-time }
+        endTime: { type: string, format: date-time }
+        purpose: { type: string, maxLength: 500 }
+    BookingCancelRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        reason: { type: string, maxLength: 500 }
+    Booking:
+      type: object
+      required: [id, resource, user, createdBy, startTime, endTime, status, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        resource: { $ref: '#/components/schemas/Resource' }
+        user: { $ref: '#/components/schemas/UserSummary' }
+        createdBy: { $ref: '#/components/schemas/UserSummary' }
+        cancelledBy:
+          oneOf:
+            - { $ref: '#/components/schemas/UserSummary' }
+            - { type: 'null' }
+        startTime: { type: string, format: date-time }
+        endTime: { type: string, format: date-time }
+        status: { $ref: '#/components/schemas/BookingStatus' }
+        purpose:
+          type: [string, 'null']
+        cancelReason:
+          type: [string, 'null']
+        checkInAt:
+          type: [string, 'null']
+          format: date-time
+          description: Dành cho Phase 2
+        reminderSentAt:
+          type: [string, 'null']
+          format: date-time
+        createdAt: { type: string, format: date-time }
+    BookingDetail:
+      allOf:
+        - { $ref: '#/components/schemas/Booking' }
+        - type: object
+          required: [statusHistory]
+          properties:
+            statusHistory:
+              type: array
+              items: { $ref: '#/components/schemas/BookingStatusHistory' }
+    BookingStatusHistory:
+      type: object
+      required: [id, newStatus, changedAt]
+      properties:
+        id: { type: string, format: uuid }
+        oldStatus:
+          oneOf:
+            - { $ref: '#/components/schemas/BookingStatus' }
+            - { type: 'null' }
+        newStatus: { $ref: '#/components/schemas/BookingStatus' }
+        changedBy:
+          description: Null khi trạng thái được chuyển tự động bởi hệ thống
+          oneOf:
+            - { $ref: '#/components/schemas/UserSummary' }
+            - { type: 'null' }
+        reason:
+          type: [string, 'null']
+        changedAt: { type: string, format: date-time }
+    PagedBookings:
+      type: object
+      required: [items, page]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Booking' }
+        page: { $ref: '#/components/schemas/PageMetadata' }
+
+    UtilizationMetric:
+      type: object
+      required: [resource, scheduledMinutes, operatingMinutes, utilizationPercent]
+      properties:
+        resource: { $ref: '#/components/schemas/Resource' }
+        scheduledMinutes:
+          type: integer
+          minimum: 0
+          description: Tổng phút CONFIRMED và COMPLETED sau khi cắt theo kỳ báo cáo; CANCELLED không được tính.
+        operatingMinutes:
+          type: integer
+          minimum: 0
+          description: Tổng phút schedule trong kỳ; MVP áp dụng schedule hiện tại, không có snapshot lịch sử.
+        utilizationPercent:
+          type: [number, 'null']
+          format: float
+          minimum: 0
+          description: null nếu operatingMinutes bằng 0, không phải 0; có thể vượt 100 nếu schedule hiện tại đã thay đổi vì MVP không snapshot schedule lịch sử.
+    UtilizationReport:
+      type: object
+      required: [from, to, timezone, metrics]
+      properties:
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        timezone: { type: string, const: Asia/Ho_Chi_Minh }
+        metrics:
+          type: array
+          items: { $ref: '#/components/schemas/UtilizationMetric' }
+    BookingTrendPoint:
+      type: object
+      required: [date, confirmedCount, completedCount, cancelledCount]
+      properties:
+        date:
+          type: string
+          format: date
+          description: Ngày Asia/Ho_Chi_Minh của booking startTime.
+        confirmedCount: { type: integer, minimum: 0 }
+        completedCount: { type: integer, minimum: 0 }
+        cancelledCount: { type: integer, minimum: 0 }
+    BookingTrendReport:
+      type: object
+      required: [from, to, timezone, points]
+      properties:
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        timezone: { type: string, const: Asia/Ho_Chi_Minh }
+        points:
+          type: array
+          items: { $ref: '#/components/schemas/BookingTrendPoint' }
+    AlertStatus:
+      type: string
+      enum: [OPEN, ACKNOWLEDGED, RESOLVED]
+    UtilizationAlert:
+      type: object
+      required: [id, resource, status, windowStart, windowEnd, utilizationPercent, threshold, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        resource: { $ref: '#/components/schemas/Resource' }
+        status: { $ref: '#/components/schemas/AlertStatus' }
+        windowStart: { type: string, format: date }
+        windowEnd: { type: string, format: date }
+        utilizationPercent: { type: number, format: float, minimum: 0 }
+        threshold: { type: number, format: float, minimum: 0, maximum: 100 }
+        acknowledgedAt:
+          type: [string, 'null']
+          format: date-time
+        resolvedAt:
+          type: [string, 'null']
+          format: date-time
+        resolutionReason:
+          type: [string, 'null']
+          description: Có thể ghi nhận resource unavailable khi resource bị suspend/delete.
+        createdAt: { type: string, format: date-time }
+    PagedUtilizationAlerts:
+      type: object
+      required: [items, page]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/UtilizationAlert' }
+        page: { $ref: '#/components/schemas/PageMetadata' }
+
+    PageMetadata:
+      type: object
+      required: [number, size, totalElements, totalPages, first, last]
+      properties:
+        number: { type: integer, minimum: 0 }
+        size: { type: integer, minimum: 1 }
+        totalElements: { type: integer, format: int64, minimum: 0 }
+        totalPages: { type: integer, minimum: 0 }
+        first: { type: boolean }
+        last: { type: boolean }
+    FieldError:
+      type: object
+      required: [field, message]
+      properties:
+        field: { type: string }
+        message: { type: string }
+    ErrorResponse:
+      type: object
+      required: [timestamp, status, code, message, path, correlationId]
+      properties:
+        timestamp: { type: string, format: date-time }
+        status: { type: integer, minimum: 400, maximum: 599 }
+        code:
+          type: string
+          enum:
+            - VALIDATION_ERROR
+            - AUTH_INVALID_CREDENTIALS
+            - AUTH_TOKEN_INVALID
+            - AUTH_TOKEN_EXPIRED
+            - ACCESS_DENIED
+            - USER_NOT_FOUND
+            - USERNAME_ALREADY_EXISTS
+            - EMAIL_ALREADY_EXISTS
+            - DEPARTMENT_NOT_FOUND
+            - DEPARTMENT_IN_USE
+            - ZONE_NOT_FOUND
+            - ZONE_IN_USE
+            - RESOURCE_NOT_FOUND
+            - RESOURCE_NOT_AVAILABLE
+            - RESOURCE_HAS_FUTURE_BOOKINGS
+            - RESOURCE_HAS_ONGOING_OR_FUTURE_BOOKINGS
+            - RESOURCE_SCHEDULE_CONFLICTS_WITH_BOOKINGS
+            - INVALID_RESOURCE_STATUS_TRANSITION
+            - OUTSIDE_OPERATING_HOURS
+            - BOOKING_NOT_FOUND
+            - BOOKING_TIME_CONFLICT
+            - BOOKING_CANNOT_BE_CANCELLED
+            - INTERNAL_SERVER_ERROR
+        message: { type: string }
+        path: { type: string }
+        correlationId: { type: string, format: uuid }
+        fieldErrors:
+          type: array
+          items: { $ref: '#/components/schemas/FieldError' }
+        details:
+          type: object
+          additionalProperties: true

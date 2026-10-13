@@ -1,0 +1,43 @@
+{
+  "theme": "base",
+  "themeVariables": {
+    "background": "#F8FAFC",
+    "primaryColor": "#EEF2FF",
+    "primaryBorderColor": "#4F46E5",
+    "primaryTextColor": "#0F172A",
+    "secondaryColor": "#EFF6FF",
+    "secondaryBorderColor": "#2563EB",
+    "tertiaryColor": "#ECFDF5",
+    "tertiaryBorderColor": "#059669",
+    "lineColor": "#94A3B8",
+    "textColor": "#0F172A",
+    "mainBkg": "#F8FAFC",
+    "clusterBkg": "#F8FAFC",
+    "clusterBorder": "#E2E8F0",
+    "edgeLabelBackground": "#F8FAFC",
+    "actorBkg": "#F8FAFC",
+    "actorBorder": "#2563EB",
+    "actorTextColor": "#0F172A",
+    "actorLineColor": "#94A3B8",
+    "signalColor": "#64748B",
+    "signalTextColor": "#334155",
+    "labelBoxBkgColor": "#FAFAFA",
+    "labelBoxBorderColor": "#94A3B8",
+    "labelTextColor": "#0F172A",
+    "loopTextColor": "#475569",
+    "noteBkgColor": "#F8FAFC",
+    "noteBorderColor": "#E2E8F0",
+    "noteTextColor": "#475569",
+    "activationBkgColor": "#F8FAFC",
+    "activationBorderColor": "#4F46E5",
+    "sequenceNumberColor": "#64748B",
+    "entityBkgColor": "#F8FAFC",
+    "entityBorderColor": "#059669",
+    "attributeBackgroundColorOdd": "#F8FAFC",
+    "attributeBackgroundColorEven": "#F8FAFC"
+  },
+  "flowchart": {
+    "curve": "basis",
+    "htmlLabels": true
+  }
+}

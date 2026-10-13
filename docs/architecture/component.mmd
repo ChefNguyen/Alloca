@@ -1,0 +1,57 @@
+%%{init: {"theme":"base","themeVariables":{"background":"#F8FAFC","primaryColor":"#EEF2FF","primaryBorderColor":"#4F46E5","primaryTextColor":"#0F172A","lineColor":"#64748B","textColor":"#0F172A","clusterBkg":"#F8FAFC","clusterBorder":"#CBD5E1","edgeLabelBackground":"#F8FAFC"},"flowchart":{"curve":"basis","htmlLabels":true}}}%%
+flowchart TB
+    user@{ shape: person, label: "Người dùng" }
+    subgraph client["Tầng giao diện"]
+        web["React 18 + TypeScript + Vite"]
+        apiClient["REST API Client<br/>/api/v1 + JWT"]
+        web --> apiClient
+    end
+    subgraph application["Tầng ứng dụng — Spring Boot 3 / Java 17"]
+        security["Spring Security<br/>JWT, active check, RBAC"]
+        controllers["REST Controllers /api/v1"]
+        subgraph domain["Các module nghiệp vụ"]
+            auth["AuthService<br/>credentials_version"]
+            resource["ResourceService<br/>schedule validation"]
+            booking["BookingService<br/>resource row lock"]
+            notification["NotificationService<br/>durable notification/outbox"]
+            analytics["AnalyticsService<br/>current 7 completed local days"]
+            floorMap["FloorMapService<br/>day + selected interval"]
+        end
+        scheduler["Spring Scheduler<br/>best effort + idempotent catch-up"]
+        repositories["Spring Data JPA Repositories"]
+        security --> controllers
+        controllers --> auth & resource & booking & notification & analytics & floorMap
+        auth --> repositories
+        resource --> repositories
+        booking --> repositories
+        notification --> repositories
+        analytics --> repositories
+        floorMap --> repositories
+        scheduler -. "reminder/completion/current alert" .-> booking
+        scheduler -.-> notification
+        scheduler -.-> analytics
+    end
+    subgraph data["Tầng dữ liệu"]
+        postgres[("Supabase Free PostgreSQL")]
+        uploads[("Cloudflare R2 Free Tier<br/>ảnh sơ đồ mặt bằng")]
+    end
+    subgraph external["Dịch vụ ngoài"]
+        emailApi["Email API qua HTTPS<br/>(tùy chọn, sau commit)"]
+    end
+    user --> web
+    apiClient -- "HTTPS + JSON / JWT" --> security
+    repositories -- "JPA / transaction / row lock<br/>qua Session Pooler" --> postgres
+    floorMap --> uploads
+    notification -. "gửi email sau commit" .-> emailApi
+    classDef actor fill:#EFF6FF,stroke:#2563EB,stroke-width:1.5px,color:#0F172A;
+    classDef frontend fill:#EFF6FF,stroke:#2563EB,stroke-width:1px,color:#0F172A;
+    classDef backend fill:#EEF2FF,stroke:#4F46E5,stroke-width:1px,color:#0F172A;
+    classDef async fill:#FFF7ED,stroke:#EA580C,stroke-width:1px,color:#0F172A;
+    classDef database fill:#ECFDF5,stroke:#059669,stroke-width:1px,color:#0F172A;
+    classDef outside fill:#FEFCE8,stroke:#CA8A04,stroke-width:1px,color:#0F172A;
+    class user actor;
+    class web,apiClient frontend;
+    class security,controllers,auth,resource,booking,notification,analytics,floorMap,repositories backend;
+    class scheduler async;
+    class postgres,uploads database;
+    class emailApi outside;

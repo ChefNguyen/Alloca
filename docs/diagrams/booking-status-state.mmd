@@ -1,0 +1,24 @@
+%%{init: {"theme":"base","themeVariables":{"background":"#F8FAFC","primaryColor":"#EEF2FF","primaryBorderColor":"#4F46E5","primaryTextColor":"#0F172A","lineColor":"#64748B","textColor":"#0F172A","noteBkgColor":"#FAFAFA","noteBorderColor":"#CBD5E1","noteTextColor":"#475569"}}}%%
+stateDiagram-v2
+    state "Vòng đời booking" as Booking {
+        [*] --> CONFIRMED: Tạo booking hợp lệ
+        CONFIRMED --> CANCELLED: Owner hủy trước giờ bắt đầu
+        CONFIRMED --> CANCELLED: Manager hủy owner cùng department, trước start
+        CONFIRMED --> CANCELLED: Admin hủy toàn hệ thống, trước start
+        CONFIRMED --> COMPLETED: Scheduler/catch-up khi end_time quá hạn
+        CANCELLED --> [*]
+        COMPLETED --> [*]
+    }
+
+    note right of CONFIRMED
+        Booking mới phải cùng ngày, bước 30 phút,
+        dài 30 phút đến 8 giờ, trong 30 ngày,
+        không quá khứ, AVAILABLE và trong schedule.
+    end note
+
+    note right of COMPLETED
+        Hoàn tất idempotent; no-show/check-in ngoài phạm vi Phase 1.
+    end note
+
+    classDef bookingState fill:#EEF2FF,stroke:#4F46E5,stroke-width:1px,color:#0F172A;
+    class CONFIRMED,CANCELLED,COMPLETED bookingState;

@@ -1,0 +1,28 @@
+%%{init: {"theme":"base","themeVariables":{"background":"#F8FAFC","primaryColor":"#ECFDF5","primaryBorderColor":"#059669","primaryTextColor":"#0F172A","lineColor":"#64748B","textColor":"#0F172A","noteBkgColor":"#FAFAFA","noteBorderColor":"#CBD5E1","noteTextColor":"#475569"}}}%%
+stateDiagram-v2
+    state "Vòng đời resource" as Resource {
+        [*] --> AVAILABLE: Resource được tạo
+        AVAILABLE --> SUSPENDED: Tạm ngưng để bảo trì
+        SUSPENDED --> AVAILABLE: Kích hoạt lại
+        SUSPENDED --> DELETED: Xóa mềm khi không có booking CONFIRMED active/tương lai
+        DELETED --> [*]
+    }
+
+    note right of AVAILABLE
+        Resource AVAILABLE có thể nhận booking mới
+        trong giờ hoạt động. Department/shared không
+        giới hạn ai được đặt; chỉ quyết định report/alert.
+    end note
+
+    note right of SUSPENDED
+        Không nhận booking mới. Chỉ trạng thái này
+        mới có thể xóa mềm.
+    end note
+
+    note right of DELETED
+        Resource DELETED bị ẩn trên map và khỏi danh sách;
+        không thể đặt chỗ.
+    end note
+
+    classDef resourceState fill:#ECFDF5,stroke:#059669,stroke-width:1px,color:#0F172A;
+    class AVAILABLE,SUSPENDED,DELETED resourceState;

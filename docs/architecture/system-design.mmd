@@ -1,0 +1,51 @@
+%%{init: {"theme":"base","themeVariables":{"background":"#F8FAFC","primaryColor":"#EEF2FF","primaryBorderColor":"#4F46E5","primaryTextColor":"#0F172A","lineColor":"#64748B","textColor":"#0F172A","clusterBkg":"#F8FAFC","clusterBorder":"#E2E8F0","edgeLabelBackground":"#F8FAFC"},"flowchart":{"curve":"basis","htmlLabels":true}}}%%
+flowchart TB
+    user["Nhân viên / Manager / Admin"]
+    subgraph client["Tầng giao diện"]
+        web["React 18 + TypeScript + Vite"]
+        apiClient["REST API client<br/>/api/v1 + JWT"]
+        web --> apiClient
+    end
+    subgraph backend["Spring Boot 3 / Java 17"]
+        security["Spring Security<br/>JWT, active check mỗi request, RBAC"]
+        controllers["REST Controllers<br/>/api/v1"]
+        subgraph services["Tầng service"]
+            authService["AuthService<br/>credentials_version"]
+            resourceService["ResourceService<br/>schedule/status lock"]
+            bookingService["BookingService<br/>transaction + row lock"]
+            notificationService["NotificationService<br/>durable in-app/outbox"]
+            analyticsService["AnalyticsService"]
+            mapService["FloorMapService"]
+        end
+        repositories["Spring Data JPA Repositories"]
+        scheduler["Tác vụ định kỳ best effort<br/>catch-up idempotent khi thức"]
+        openapi["SpringDoc OpenAPI"]
+        security --> controllers
+        controllers --> authService & resourceService & bookingService & notificationService & analyticsService & mapService
+        authService --> repositories
+        resourceService --> repositories
+        bookingService --> repositories
+        notificationService --> repositories
+        analyticsService --> repositories
+        mapService --> repositories
+        scheduler --> bookingService & notificationService & analyticsService
+        openapi -. "tài liệu hóa" .-> controllers
+    end
+    subgraph infrastructure["Hạ tầng"]
+        postgres[("Supabase Free<br/>PostgreSQL")]
+        floorMaps[("Cloudflare R2 Free Tier<br/>ảnh sơ đồ mặt bằng")]
+        emailApi["Email API qua HTTPS<br/>(tùy chọn, sau commit)"]
+    end
+    user --> web
+    apiClient -- "HTTPS + JSON / JWT" --> security
+    repositories -- "JPA / transaction / row lock<br/>qua Session Pooler" --> postgres
+    mapService --> floorMaps
+    notificationService -. "gửi email sau commit" .-> emailApi
+    classDef frontend fill:#EFF6FF,stroke:#2563EB,stroke-width:1px,color:#0F172A;
+    classDef backend fill:#EEF2FF,stroke:#4F46E5,stroke-width:1px,color:#0F172A;
+    classDef database fill:#ECFDF5,stroke:#059669,stroke-width:1px,color:#0F172A;
+    classDef external fill:#F8FAFC,stroke:#E2E8F0,stroke-width:1px,color:#475569;
+    class web,apiClient frontend;
+    class security,controllers,authService,resourceService,bookingService,notificationService,analyticsService,mapService,repositories,scheduler,openapi backend;
+    class postgres,floorMaps database;
+    class user,emailApi external;
