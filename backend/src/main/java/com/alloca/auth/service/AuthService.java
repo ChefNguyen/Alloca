@@ -3,7 +3,8 @@ package com.alloca.auth.service;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-
+import org.springframework.transaction.annotation.Transactional;
+import com.alloca.auth.security.JwtService;
 import com.alloca.auth.api.dto.LoginResponse;
 import com.alloca.auth.api.dto.DepartmentSummaryResponse;
 import com.alloca.auth.api.dto.UserResponse;
@@ -26,11 +27,13 @@ import lombok.RequiredArgsConstructor;
 public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
 
     // public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
     //     this.userRepository = userRepository;
     //     this.passwordEncoder = passwordEncoder;
     // }
+    @Transactional(readOnly = true)
     public LoginResponse login(LoginRequest request){
         User user = userRepository.findByUsername(request.username())
                                     .orElseThrow(() -> new BadCredentialsException("Invalid username or password"));
@@ -54,12 +57,15 @@ public class AuthService {
             user.getCreatedAt()
         );
 
+        String accessToken = jwtService.generateAccessToken(user);
+        String refreshToken = jwtService.generateRefreshToken(user);
+
         return new LoginResponse(
-            "mock-access-token",
+            accessToken,
             "Bearer",
-            1800L,
-            "mock-refresh-token",
-            604800L,
+            jwtService.getAccessTokenTtlSeconds(),
+            refreshToken,
+            jwtService.getRefreshTokenTtlSeconds(),
             userResponse
         );
     }
