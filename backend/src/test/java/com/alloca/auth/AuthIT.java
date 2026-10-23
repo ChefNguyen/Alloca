@@ -1,6 +1,7 @@
 package com.alloca.auth;
 
 import com.alloca.auth.api.dto.LoginRequest;
+import com.alloca.auth.api.dto.RefreshTokenRequest;
 import com.alloca.auth.domain.Department;
 import com.alloca.auth.domain.Role;
 import com.alloca.auth.domain.User;
@@ -144,5 +145,94 @@ class AuthIT {
                 .andExpect(status().isUnauthorized())
                 .andExpect(header().string("Content-Type", "application/problem+json"))
                 .andExpect(jsonPath("$.code").value("AUTH_INVALID_CREDENTIALS"));
+    }
+
+    @Test
+    @DisplayName("IT: Refresh token thật hợp lệ -> Nhận được Access Token mới (200 OK)")
+    void refreshToken_Success_WithRealDatabase() throws Exception {
+        String rawPassword = "SecurePassword123!";
+        User user = new User(
+                UUID.randomUUID(),
+                "refreshtestuser",
+                "refreshtestuser@alloca.com",
+                passwordEncoder.encode(rawPassword),
+                "Refresh Test User",
+                Role.EMPLOYEE,
+                department
+        );
+        userRepository.save(user);
+
+        // 1. Đăng nhập để nhận refresh token thật từ server
+        String loginResponseJson = mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new LoginRequest("refreshtestuser", rawPassword))))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        String refreshToken = com.jayway.jsonpath.JsonPath.read(loginResponseJson, "$.refreshToken");
+        assertThat(refreshToken).isNotBlank();
+
+        // 2. Gửi request refresh với token thật
+        RefreshTokenRequest refreshRequest = new RefreshTokenRequest(refreshToken);
+        mockMvc.perform(post("/api/v1/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(refreshRequest)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").isNotEmpty())
+                .andExpect(jsonPath("$.tokenType").value("Bearer"))
+                .andExpect(jsonPath("$.expiresIn").isNumber());
+    }
+
+    @Test
+    @DisplayName("IT: Refresh token không hợp lệ (sai chữ ký / format) -> Trả về 401 AUTH_TOKEN_INVALID")
+    void refreshToken_InvalidToken_WithRealDatabase() throws Exception {
+        RefreshTokenRequest invalidRequest = new RefreshTokenRequest("this-is-an-invalid-tampered-token-1234567890");
+
+        mockMvc.perform(post("/api/v1/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(invalidRequest)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("Content-Type", "application/problem+json"))
+                .andExpect(jsonPath("$.code").value("AUTH_TOKEN_INVALID"))
+                .andExpect(jsonPath("$.status").value(401));
+    }
+
+    @Test
+    @DisplayName("IT: Đổi mật khẩu (tăng credentials_version) làm vô hiệu hóa refresh token cũ -> Trả về 401 AUTH_TOKEN_INVALID")
+    void refreshToken_PasswordChanged_InvalidatesOldRefreshToken() throws Exception {
+        String rawPassword = "InitialPassword123!";
+        User user = new User(
+                UUID.randomUUID(),
+                "versiontestuser",
+                "versiontestuser@alloca.com",
+                passwordEncoder.encode(rawPassword),
+                "Version Test User",
+                Role.EMPLOYEE,
+                department
+        );
+        userRepository.save(user);
+
+        // 1. Đăng nhập để lấy refresh token mang version 1
+        String loginResponseJson = mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new LoginRequest("versiontestuser", rawPassword))))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        String oldRefreshToken = com.jayway.jsonpath.JsonPath.read(loginResponseJson, "$.refreshToken");
+
+        // 2. Mô phỏng đổi mật khẩu: tăng credentials_version trong DB lên 2
+        user.incrementCredentialsVersion();
+        userRepository.save(user);
+
+        // 3. Dùng lại refresh token cũ mang version 1 -> Server phải từ chối ngay lập tức
+        RefreshTokenRequest refreshRequest = new RefreshTokenRequest(oldRefreshToken);
+        mockMvc.perform(post("/api/v1/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(refreshRequest)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("Content-Type", "application/problem+json"))
+                .andExpect(jsonPath("$.code").value("AUTH_TOKEN_INVALID"))
+                .andExpect(jsonPath("$.status").value(401));
     }
 }

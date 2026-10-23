@@ -12,6 +12,8 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     @EntityGraph(attributePaths = {"department"}) // Override LAZY -> EAGER cho query findByUsername
     Optional<User> findByUsername(String username);
     Optional<User> findByEmail(String email);
+    @EntityGraph(attributePaths = {"department"})
+    Optional<User> findById(UUID id);
     boolean existsByUsername(String username);
     boolean existsByEmail(String email);
 }

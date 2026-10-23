@@ -7,11 +7,15 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import com.alloca.auth.api.dto.LoginRequest;
 import com.alloca.auth.api.dto.LoginResponse;
+import com.alloca.auth.api.dto.RefreshTokenRequest;
+import com.alloca.auth.api.dto.AccessTokenResponse;
+import com.alloca.auth.exception.InvalidTokenException;
 import com.alloca.auth.domain.Department;
 import com.alloca.auth.domain.Role;
 import com.alloca.auth.domain.User;
 import com.alloca.auth.repository.UserRepository;
 import com.alloca.auth.security.JwtService;
+import com.nimbusds.jwt.JWTClaimsSet;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -121,4 +125,106 @@ public class AuthServiceTest {
                 .hasMessage("Invalid username or password");
     }
 
+    @Test
+    @DisplayName("RefreshToken thành công khi token hợp lệ và tài khoản active")
+    void refreshToken_Success() {
+        String rawToken = "valid-refresh-token-string-example-12345";
+        RefreshTokenRequest request = new RefreshTokenRequest(rawToken);
+
+        JWTClaimsSet claims = new JWTClaimsSet.Builder()
+                .subject(activeUser.getId().toString())
+                .claim("credentials_version", activeUser.getCredentialsVersion())
+                .build();
+
+        when(jwtService.parseAndValidateRefreshToken(rawToken)).thenReturn(claims);
+        when(userRepository.findById(activeUser.getId())).thenReturn(Optional.of(activeUser));
+        when(jwtService.generateAccessToken(activeUser)).thenReturn("new-access-token-123");
+        when(jwtService.getAccessTokenTtlSeconds()).thenReturn(1800L);
+
+        AccessTokenResponse response = authService.refreshToken(request);
+
+        assertThat(response).isNotNull();
+        assertThat(response.accessToken()).isEqualTo("new-access-token-123");
+        assertThat(response.tokenType()).isEqualTo("Bearer");
+        assertThat(response.expiresIn()).isEqualTo(1800L);
+    }
+
+    @Test
+    @DisplayName("RefreshToken ném InvalidTokenException khi tài khoản bị vô hiệu hóa")
+    void refreshToken_InactiveUser_ThrowsException() {
+        String rawToken = "valid-refresh-token-string-example-12345";
+        RefreshTokenRequest request = new RefreshTokenRequest(rawToken);
+
+        activeUser.deactivate();
+        JWTClaimsSet claims = new JWTClaimsSet.Builder()
+                .subject(activeUser.getId().toString())
+                .claim("credentials_version", activeUser.getCredentialsVersion())
+                .build();
+
+        when(jwtService.parseAndValidateRefreshToken(rawToken)).thenReturn(claims);
+        when(userRepository.findById(activeUser.getId())).thenReturn(Optional.of(activeUser));
+
+        assertThatThrownBy(() -> authService.refreshToken(request))
+                .isInstanceOf(InvalidTokenException.class)
+                .hasMessageContaining("inactive");
+    }
+
+    @Test
+    @DisplayName("RefreshToken ném InvalidTokenException khi credentials_version trong token bị lệch so với DB")
+    void refreshToken_CredentialsVersionMismatch_ThrowsException() {
+        String rawToken = "valid-refresh-token-string-example-12345";
+        RefreshTokenRequest request = new RefreshTokenRequest(rawToken);
+
+        JWTClaimsSet claims = new JWTClaimsSet.Builder()
+                .subject(activeUser.getId().toString())
+                .claim("credentials_version", 1)
+                .build();
+
+        activeUser.incrementCredentialsVersion();
+
+        when(jwtService.parseAndValidateRefreshToken(rawToken)).thenReturn(claims);
+        when(userRepository.findById(activeUser.getId())).thenReturn(Optional.of(activeUser));
+
+        assertThatThrownBy(() -> authService.refreshToken(request))
+                .isInstanceOf(InvalidTokenException.class)
+                .hasMessageContaining("version mismatch");
+    }
+
+    @Test
+    @DisplayName("RefreshToken ném InvalidTokenException khi không tìm thấy user trong DB")
+    void refreshToken_UserNotFound_ThrowsException() {
+        String rawToken = "valid-refresh-token-string-example-12345";
+        RefreshTokenRequest request = new RefreshTokenRequest(rawToken);
+        UUID nonExistentId = UUID.randomUUID();
+
+        JWTClaimsSet claims = new JWTClaimsSet.Builder()
+                .subject(nonExistentId.toString())
+                .claim("credentials_version", 1)
+                .build();
+
+        when(jwtService.parseAndValidateRefreshToken(rawToken)).thenReturn(claims);
+        when(userRepository.findById(nonExistentId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> authService.refreshToken(request))
+                .isInstanceOf(InvalidTokenException.class)
+                .hasMessageContaining("not found");
+    }
+
+    @Test
+    @DisplayName("RefreshToken ném InvalidTokenException khi subject không phải UUID hợp lệ")
+    void refreshToken_InvalidSubjectUuid_ThrowsException() {
+        String rawToken = "valid-refresh-token-string-example-12345";
+        RefreshTokenRequest request = new RefreshTokenRequest(rawToken);
+
+        JWTClaimsSet claims = new JWTClaimsSet.Builder()
+                .subject("not-a-valid-uuid")
+                .claim("credentials_version", 1)
+                .build();
+
+        when(jwtService.parseAndValidateRefreshToken(rawToken)).thenReturn(claims);
+
+        assertThatThrownBy(() -> authService.refreshToken(request))
+                .isInstanceOf(InvalidTokenException.class)
+                .hasMessageContaining("not a valid UUID");
+    }
 }
