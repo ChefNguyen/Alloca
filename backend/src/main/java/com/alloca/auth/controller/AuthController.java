@@ -6,6 +6,8 @@ import lombok.RequiredArgsConstructor;
 
 import com.alloca.auth.api.dto.LoginRequest;
 import com.alloca.auth.api.dto.LoginResponse;
+import com.alloca.auth.api.dto.AccessTokenResponse;
+import com.alloca.auth.api.dto.RefreshTokenRequest;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -33,6 +35,12 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login( @Valid @RequestBody LoginRequest request){
         LoginResponse response = authService.login(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<AccessTokenResponse> refreshToken(@Valid @RequestBody RefreshTokenRequest request){
+        AccessTokenResponse response = authService.refreshToken(request);
         return ResponseEntity.ok(response);
     }
 }

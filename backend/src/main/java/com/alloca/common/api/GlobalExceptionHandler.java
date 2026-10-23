@@ -6,7 +6,9 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
-import org.springframework.web.bind.annotation.ExceptionHandler;
+import com.alloca.auth.exception.InvalidTokenException;
+import com.alloca.auth.exception.ExpiredTokenException;
+import org.springframework.web.bind.annotation.ExceptionHandler; 
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.time.Instant;
@@ -68,5 +70,44 @@ public class GlobalExceptionHandler {
             return UUID.randomUUID().toString();
         }
         return correlationId;
+    }
+
+    @ExceptionHandler(InvalidTokenException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidToken(
+        InvalidTokenException ex,
+        HttpServletRequest request
+    ){
+        ErrorResponse error = new ErrorResponse(
+            Instant.now(),
+            HttpStatus.UNAUTHORIZED.value(),
+            "AUTH_TOKEN_INVALID", // Mã chuẩn theo OpenAPI
+            ex.getMessage(),
+            request.getRequestURI(),
+            resolveCorrelationId(request),
+            null
+        );
+
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                             .contentType(PROBLEM_JSON)
+                             .body(error);
+    }
+
+    @ExceptionHandler(ExpiredTokenException.class)
+    public ResponseEntity<ErrorResponse> handleExpiredToken(
+        ExpiredTokenException ex,
+        HttpServletRequest request
+    ) {
+        ErrorResponse error = new ErrorResponse(
+            Instant.now(),
+            HttpStatus.UNAUTHORIZED.value(),
+            "AUTH_TOKEN_EXPIRED", // Mã chuẩn theo OpenAPI
+            ex.getMessage(),
+            request.getRequestURI(),
+            resolveCorrelationId(request),
+            null
+        );
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                             .contentType(PROBLEM_JSON)
+                             .body(error);
     }
 }
