@@ -18,6 +18,7 @@ backend/.m2/
 backend/.downloads/
 backend/.tools/
 backend/.env
+backend/env
 backend/.env.*
 !backend/.env.example
 

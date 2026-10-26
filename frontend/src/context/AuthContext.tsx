@@ -1,14 +1,14 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { Role, User } from '@/types/api';
-import { mockUsers } from '@/mock/data';
+import { clearSession, loadSession, saveSession, SESSION_EXPIRED_EVENT } from '@/lib/authStorage';
+import { login as loginRequest } from '@/services/authApi';
 
 interface AuthContextType {
   user: User | null;
   role: Role;
   isAuthenticated: boolean;
-  login: (username: string, role?: Role) => void;
+  login: (username: string, password: string) => Promise<void>;
   logout: () => void;
-  switchRole: (role: Role) => void;
   unreadCount: number;
   setUnreadCount: React.Dispatch<React.SetStateAction<number>>;
 }
@@ -16,26 +16,25 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Default to Admin Morgan Vance to match Stitch prototype initially
-  const [user, setUser] = useState<User | null>(mockUsers[0]);
+  const [user, setUser] = useState<User | null>(() => loadSession()?.user ?? null);
   const [unreadCount, setUnreadCount] = useState<number>(2);
 
-  const login = (username: string, role?: Role) => {
-    const found = mockUsers.find((u) => u.username === username || (role && u.role === role));
-    setUser(found || mockUsers[0]);
-  };
+  const login = useCallback(async (username: string, password: string) => {
+    const session = await loginRequest(username, password);
+    saveSession(session);
+    setUser(session.user);
+  }, []);
 
-  const logout = () => {
+  const logout = useCallback(() => {
+    clearSession();
     setUser(null);
-  };
+  }, []);
 
-  const switchRole = (newRole: Role) => {
-    const matching = mockUsers.find((u) => u.role === newRole) || {
-      ...mockUsers[0],
-      role: newRole,
-    };
-    setUser(matching);
-  };
+  // The API client fires this when a 401 could not be fixed by refreshing the token.
+  useEffect(() => {
+    window.addEventListener(SESSION_EXPIRED_EVENT, logout);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, logout);
+  }, [logout]);
 
   return (
     <AuthContext.Provider
@@ -45,7 +44,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAuthenticated: !!user,
         login,
         logout,
-        switchRole,
         unreadCount,
         setUnreadCount,
       }}
@@ -55,6 +53,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {

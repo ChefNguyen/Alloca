@@ -3,10 +3,9 @@ import { NavLink } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useSidebar } from '@/context/SidebarContext';
 import { mockNotifications } from '@/mock/data';
-import { Role } from '@/types/api';
 
 export const Sidebar: React.FC = () => {
-  const { user, role, switchRole, logout, unreadCount, setUnreadCount } = useAuth();
+  const { user, role, logout, unreadCount, setUnreadCount } = useAuth();
   const { isExpanded, toggleCollapse } = useSidebar();
 
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
@@ -327,29 +326,7 @@ export const Sidebar: React.FC = () => {
                     <p className="text-[11px] text-[#6B6560] truncate">{user?.email}</p>
                   </div>
 
-                  <div className="space-y-1">
-                    <span className="text-[10px] uppercase tracking-[0.08em] font-[500] text-[#A8A29E] px-2 block mb-1">
-                      Switch Role
-                    </span>
-                    {(['EMPLOYEE', 'MANAGER', 'ADMIN'] as Role[]).map((r) => (
-                      <button
-                        key={r}
-                        onClick={() => {
-                          switchRole(r);
-                          setShowProfileMenu(false);
-                        }}
-                        className={`w-full text-left px-2.5 py-1.5 rounded-[4px] text-xs transition-colors cursor-pointer ${
-                          role === r
-                            ? 'bg-[#D97757] text-white font-semibold'
-                            : 'text-[#6B6560] hover:text-[#242424] hover:bg-[#F3F2EF]'
-                        }`}
-                      >
-                        {r}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="pt-2 border-t border-[#E5E0D8] mt-2">
+                  <div>
                     <button
                       onClick={logout}
                       className="w-full text-left px-2.5 py-1.5 rounded-[4px] text-xs font-medium text-[#D97757] hover:bg-[#F3F2EF] transition-colors cursor-pointer"

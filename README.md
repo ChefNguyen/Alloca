@@ -42,6 +42,31 @@ Run backend verification with:
 .\backend\mvnw.cmd -f .\backend\pom.xml test
 ```
 
+## Development accounts
+
+Demo accounts for local development and manual testing (one per role). The backend only
+authenticates against the database, so seed them once after the first start:
+
+```bash
+./backend/scripts/run-dev-seed.sh
+```
+
+The script is idempotent: running it again resets these accounts to the values below. It reads
+the connection from `backend/.env` (or `backend/env`) and never prints credentials.
+
+| Role     | Username    | Password         | Department  |
+|----------|-------------|------------------|-------------|
+| ADMIN    | `admin`     | `Admin@12345`    | -           |
+| MANAGER  | `manager1`  | `Manager@12345`  | Engineering |
+| EMPLOYEE | `employee1` | `Employee@12345` | Engineering |
+
+The seed also adds one department (Engineering) and two zones (West Wing with a floor map,
+No Map Zone) so resources can be created in the Administration page.
+
+> These passwords are public. Use them only against a local or throwaway database and never
+> seed them into a shared, staging or production environment. Seed data lives in
+> `backend/scripts/dev-seed.sql` and is intentionally not a Flyway migration.
+
 ## Team workflow
 
 The backend is intentionally a scaffold. Implement each work item end to end:

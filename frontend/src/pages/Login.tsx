@@ -1,25 +1,29 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { Role } from '@/types/api';
+import { ApiError } from '@/lib/api';
 
 export const Login: React.FC = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
 
-  const [username, setUsername] = useState<string>('morgan.vance');
-  const [password, setPassword] = useState<string>('Password123!');
-  const [selectedRole, setSelectedRole] = useState<Role>('ADMIN');
+  const [username, setUsername] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState<boolean>(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    login(username, selectedRole);
-    navigate('/');
-  };
-
-  const handleSelectPreset = (uname: string, r: Role) => {
-    setUsername(uname);
-    setSelectedRole(r);
+    setSubmitting(true);
+    setError(null);
+    try {
+      await login(username.trim(), password);
+      navigate('/');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Sign in failed. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -73,35 +77,14 @@ export const Login: React.FC = () => {
           </p>
         </div>
 
-        {/* Quick Demo Role Picker */}
-        <div className="p-3.5 rounded-[6px] bg-[#F0EDE8]/50 space-y-2">
-          <span className="text-[10px] uppercase font-bold tracking-widest text-[#8A8070] block">
-            Demo Account Quick-Select:
-          </span>
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { label: 'Admin', user: 'morgan.vance', role: 'ADMIN' as Role },
-              { label: 'Manager', user: 'alex.rivera', role: 'MANAGER' as Role },
-              { label: 'Employee', user: 'sarah.chen', role: 'EMPLOYEE' as Role },
-            ].map((p) => (
-              <button
-                type="button"
-                key={p.role}
-                onClick={() => handleSelectPreset(p.user, p.role)}
-                className={`py-2 px-2 rounded-[4px] text-xs font-semibold transition-all text-center cursor-pointer ${
-                  selectedRole === p.role
-                    ? 'bg-[#1A1A1A] text-white shadow-xs'
-                    : 'bg-[#FAFAF8] shadow-card text-[#1A1A1A] hover:bg-white'
-                }`}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
         {/* Credentials Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <div role="alert" className="p-3 rounded-[6px] bg-[#FFEBEE] text-[#C62828] text-xs font-semibold">
+              {error}
+            </div>
+          )}
+
           <div>
             <label className="block text-[10px] uppercase tracking-widest font-semibold text-[#8A8070] mb-1">
               Username
@@ -111,6 +94,7 @@ export const Login: React.FC = () => {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               className="w-full h-11 px-3.5 rounded-[6px] bg-[#F0EDE8]/60 text-xs font-semibold text-[#1A1A1A] border-0 focus:ring-1 focus:ring-[#8A8070] focus:outline-none"
+              autoComplete="username"
               required
             />
           </div>
@@ -124,15 +108,17 @@ export const Login: React.FC = () => {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full h-11 px-3.5 rounded-[6px] bg-[#F0EDE8]/60 text-xs font-semibold text-[#1A1A1A] border-0 focus:ring-1 focus:ring-[#8A8070] focus:outline-none"
+              autoComplete="current-password"
               required
             />
           </div>
 
           <button
             type="submit"
-            className="w-full py-2.5 rounded-[6px] bg-[#E8622A] text-white text-xs font-semibold hover:opacity-95 shadow-card hover:shadow-card-hover transition-all cursor-pointer mt-4"
+            disabled={submitting}
+            className="w-full py-2.5 rounded-[6px] bg-[#E8622A] text-white text-xs font-semibold hover:opacity-95 shadow-card hover:shadow-card-hover transition-all cursor-pointer mt-4 disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            Access Spatial Dashboard
+            {submitting ? 'Signing in…' : 'Access Spatial Dashboard'}
           </button>
         </form>
       </div>
