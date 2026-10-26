@@ -10,6 +10,7 @@ import com.alloca.auth.repository.UserRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -25,10 +26,12 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
@@ -235,4 +238,110 @@ class AuthIT {
                 .andExpect(jsonPath("$.code").value("AUTH_TOKEN_INVALID"))
                 .andExpect(jsonPath("$.status").value(401));
     }
+
+    // ===================================================================
+    // ALC-25: JWT Filter, /me endpoint, BR-AUTH-01 active check
+    // ===================================================================
+
+    @Test
+    @DisplayName("IT ALC-25: GET /auth/me with real access token -> 200 OK with user profile")
+    void getMe_WithValidAccessToken_Returns200() throws Exception {
+        String rawPassword = "SecurePassword123!";
+        User user = new User(UUID.randomUUID(), "meuser", "meuser@alloca.com",
+                passwordEncoder.encode(rawPassword), "Me User", Role.EMPLOYEE, department);
+        userRepository.save(user);
+
+        // Step 1: Login to get real access token
+        String loginResponseJson = mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new LoginRequest("meuser", rawPassword))))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        String accessToken = com.jayway.jsonpath.JsonPath.read(loginResponseJson, "$.accessToken");
+        assertThat(accessToken).isNotBlank();
+
+        // Step 2: Call /me with the real access token
+        mockMvc.perform(get("/api/v1/auth/me")
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.username").value("meuser"))
+                .andExpect(jsonPath("$.role").value("EMPLOYEE"))
+                .andExpect(jsonPath("$.department.name").value("Engineering"));
+    }
+
+    @Test
+    @DisplayName("IT ALC-25: GET /auth/me without token -> 401 AUTH_TOKEN_INVALID (filter chain guard)")
+    void getMe_WithoutToken_Returns401() throws Exception {
+        mockMvc.perform(get("/api/v1/auth/me"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("Content-Type", "application/problem+json"))
+                .andExpect(jsonPath("$.code").value("AUTH_TOKEN_INVALID"))
+                .andExpect(jsonPath("$.status").value(401));
+    }
+
+    @Test
+    @DisplayName("IT ALC-25: GET /auth/me with tampered token -> 401 AUTH_TOKEN_INVALID")
+    void getMe_TamperedToken_Returns401() throws Exception {
+        mockMvc.perform(get("/api/v1/auth/me")
+                        .header("Authorization", "Bearer eyJhbGciOiJIUzI1NiJ9.tampered.signature"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("Content-Type", "application/problem+json"))
+                .andExpect(jsonPath("$.code").value("AUTH_TOKEN_INVALID"));
+    }
+
+    @Test
+    @DisplayName("IT ALC-25 BR-AUTH-01: Deactivated user is rejected even with valid (unexpired) access token -> 401")
+    void getMe_DeactivatedUser_WithValidToken_Returns401() throws Exception {
+        String rawPassword = "SecurePassword123!";
+        User user = new User(UUID.randomUUID(), "deactivateuser", "deactivate@alloca.com",
+                passwordEncoder.encode(rawPassword), "Deactivate User", Role.EMPLOYEE, department);
+        userRepository.save(user);
+
+        // Step 1: Login to get valid access token while account is still active
+        String loginResponseJson = mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new LoginRequest("deactivateuser", rawPassword))))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        String accessToken = com.jayway.jsonpath.JsonPath.read(loginResponseJson, "$.accessToken");
+
+        // Step 2: Deactivate the user in DB (simulates admin disabling account)
+        user.deactivate();
+        userRepository.save(user);
+
+        // Step 3: Try to call /me with the still-valid (unexpired) token — must be rejected
+        mockMvc.perform(get("/api/v1/auth/me")
+                        .header("Authorization", "Bearer " + accessToken))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("Content-Type", "application/problem+json"))
+                .andExpect(jsonPath("$.code").value("AUTH_TOKEN_INVALID"));
+    }
+
+    @Test
+    @DisplayName("IT ALC-25: Token Substitution Attack — refresh token rejected on /auth/me -> 401")
+    void getMe_WithRefreshTokenInsteadOfAccessToken_Returns401() throws Exception {
+        String rawPassword = "SecurePassword123!";
+        User user = new User(UUID.randomUUID(), "confuseuser", "confuse@alloca.com",
+                passwordEncoder.encode(rawPassword), "Confuse User", Role.EMPLOYEE, department);
+        userRepository.save(user);
+
+        // Login to get REFRESH token
+        String loginResponseJson = mockMvc.perform(post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(new LoginRequest("confuseuser", rawPassword))))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        String refreshToken = com.jayway.jsonpath.JsonPath.read(loginResponseJson, "$.refreshToken");
+
+        // Attempt to use the REFRESH token on the /me endpoint (token_type = "refresh_token" != "access_token")
+        mockMvc.perform(get("/api/v1/auth/me")
+                        .header("Authorization", "Bearer " + refreshToken))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("Content-Type", "application/problem+json"))
+                .andExpect(jsonPath("$.code").value("AUTH_TOKEN_INVALID"));
+    }
 }
+

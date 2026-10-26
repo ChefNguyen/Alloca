@@ -64,7 +64,7 @@ public class JwtService {
                 .subject(user.getId().toString())
                 .issueTime(Date.from(now))
                 .expirationTime(Date.from(expiresAt))
-                .claim("token_type", "refresh")
+                .claim("token_type", "refresh_token")
                 .claim("credentials_version", user.getCredentialsVersion())
                 .build();
         return signToken(claims);
@@ -94,7 +94,7 @@ public class JwtService {
      * Xác thực chữ ký, tính toàn vẹn và thời hạn của Refresh Token.
      * Trả về JWTClaimsSet nếu hợp lệ.
      */
-    public JWTClaimsSet parseAndValidateRefreshToken(String token) {
+    private JWTClaimsSet parseAndValidate(String token, String expectedType) {
         try {
             SignedJWT signedJWT = SignedJWT.parse(token);
             JWSVerifier verifier = new MACVerifier(secretKeyBytes);
@@ -108,13 +108,15 @@ public class JwtService {
             // 2. Kiểm tra thời hạn
             Date expirationTime = claims.getExpirationTime();
             if (expirationTime == null || expirationTime.before(new Date())) {
-                throw new ExpiredTokenException("Refresh token has expired");
+                String message = "access_token".equals(expectedType) ? "Access_token has expired"
+                                                                    : "Refresh_token has expired";
+                throw new ExpiredTokenException(message);
             }
 
-            // 3. Kiểm tra loại token (phải là refresh, không chấp nhận access_token)
+            // 3. Kiểm tra loại token (ngăn chặn Token Substitution Attack)
             String tokenType = claims.getStringClaim("token_type");
-            if (!"refresh".equals(tokenType)) {
-                throw new InvalidTokenException("Invalid token type: expected refresh token");
+            if (!expectedType.equals(tokenType)) {
+                throw new InvalidTokenException("Invalid token type: expected " + expectedType);
             }
 
             return claims;
@@ -123,6 +125,16 @@ public class JwtService {
             throw new InvalidTokenException("Malformed or invalid token format");
         }
     }
+
+    public JWTClaimsSet parseAndValidateAccessToken(String token){
+        return parseAndValidate(token, "access_token");
+    }
+
+    public JWTClaimsSet parseAndValidateRefreshToken(String token){
+        return parseAndValidate(token, "refresh_token");
+    }
+
+
 
 
 

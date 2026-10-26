@@ -119,4 +119,28 @@ public class AuthService {
                 jwtService.getAccessTokenTtlSeconds()
         );
     }
+
+    /**
+     * ALC-25: Trả về thông tin profile của người dùng đang đăng nhập.
+     * userId được trích xuất từ UserPrincipal trong SecurityContext — không thể giả mạo.
+     */
+    @Transactional(readOnly = true)
+    public UserResponse getCurrentUser(UUID userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new InvalidTokenException("Authenticated user no longer exists"));
+
+        DepartmentSummaryResponse deptResponse = user.getDepartment() != null
+                ? new DepartmentSummaryResponse(user.getDepartment().getId(), user.getDepartment().getName())
+                : null;
+
+        return new UserResponse(
+                user.getId(),
+                user.getUsername(),
+                user.getFullname(),
+                user.getEmail(),
+                user.getRole(),
+                user.isActive(),
+                deptResponse,
+                user.getCreatedAt());
+    }
 }
