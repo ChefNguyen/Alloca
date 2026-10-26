@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { mockUsers } from '@/mock/data';
 import { ResourceFormModal, ResourceFormValues } from '@/components/admin/ResourceFormModal';
+import { ResourceRowActions } from '@/components/admin/ResourceRowActions';
+import { ResourceScheduleModal } from '@/components/admin/ResourceScheduleModal';
 import { ApiError } from '@/lib/api';
 import {
   createResource,
@@ -39,6 +41,7 @@ export const Administration: React.FC = () => {
 
   // `editing === undefined` means the modal is closed; `null` means create mode.
   const [editing, setEditing] = useState<Resource | null | undefined>(undefined);
+  const [schedulingResource, setSchedulingResource] = useState<Resource | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [formFieldErrors, setFormFieldErrors] = useState<Record<string, string>>({});
@@ -238,40 +241,40 @@ export const Administration: React.FC = () => {
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-[#E5E0D8]/60 bg-[#F0EDE8]/50 text-[#8A8070] uppercase font-bold text-[10px] tracking-wider">
-                  <th className="py-3 px-4 rounded-l-[4px]">Name</th>
-                  <th className="py-3 px-4">Type</th>
-                  <th className="py-3 px-4">Zone</th>
-                  <th className="py-3 px-4">Department</th>
-                  <th className="py-3 px-4">Capacity</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right rounded-r-[4px]">Actions</th>
+                  <th className="py-3 px-3 rounded-l-[4px]">Name</th>
+                  <th className="py-3 px-3">Type</th>
+                  <th className="py-3 px-3">Zone</th>
+                  <th className="py-3 px-3">Department</th>
+                  <th className="py-3 px-3">Capacity</th>
+                  <th className="py-3 px-3">Status</th>
+                  <th className="py-3 px-3 text-right rounded-r-[4px]">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E5E0D8]/40">
                 {!loading && !loadError && resources.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="py-8 px-4 text-center text-[#8A8070]">
+                    <td colSpan={7} className="py-8 px-3 text-center text-[#8A8070]">
                       No resources yet. Use “Add Resource” to create the first one.
                     </td>
                   </tr>
                 )}
                 {loading && (
                   <tr>
-                    <td colSpan={7} className="py-8 px-4 text-center text-[#8A8070]">
+                    <td colSpan={7} className="py-8 px-3 text-center text-[#8A8070]">
                       Loading resources…
                     </td>
                   </tr>
                 )}
                 {resources.map((res) => (
                   <tr key={res.id} className="hover:bg-[#F0EDE8]/30 transition-colors">
-                    <td className="py-3.5 px-4 font-bold text-[#242424]">{res.name}</td>
-                    <td className="py-3.5 px-4">{res.type}</td>
-                    <td className="py-3.5 px-4 text-[#8A8070]">
+                    <td className="py-3.5 px-3 font-bold text-[#242424]">{res.name}</td>
+                    <td className="py-3.5 px-3">{res.type}</td>
+                    <td className="py-3.5 px-3 text-[#8A8070] min-w-[9rem]">
                       {res.zone ? `${res.zone.floor} · ${res.zone.name}` : '—'}
                     </td>
-                    <td className="py-3.5 px-4 text-[#8A8070]">{res.department?.name ?? 'Shared'}</td>
-                    <td className="py-3.5 px-4">{res.capacity}</td>
-                    <td className="py-3.5 px-4">
+                    <td className="py-3.5 px-3 text-[#8A8070]">{res.department?.name ?? 'Shared'}</td>
+                    <td className="py-3.5 px-3">{res.capacity}</td>
+                    <td className="py-3.5 px-3">
                       <span
                         className={`px-2.5 py-0.5 rounded-[4px] text-[10px] font-bold ${
                           res.status === 'AVAILABLE'
@@ -282,38 +285,14 @@ export const Administration: React.FC = () => {
                         {res.status}
                       </span>
                     </td>
-                    <td className="py-3.5 px-4">
-                      <div className="flex items-center justify-end gap-2 whitespace-nowrap">
-                      <button
-                        onClick={() => openForm(res)}
-                        className="px-3 py-1.5 rounded-[6px] bg-[#F0EDE8]/80 hover:bg-[#F0EDE8] font-semibold text-xs text-[#242424] cursor-pointer"
-                      >
-                        Edit
-                      </button>
-
-                      <button
-                        onClick={() => toggleResourceStatus(res)}
-                        className="px-3 py-1.5 rounded-[6px] bg-[#F0EDE8]/80 hover:bg-[#F0EDE8] font-semibold text-xs text-[#242424] cursor-pointer"
-                      >
-                        {res.status === 'AVAILABLE' ? 'Suspend' : 'Activate'}
-                      </button>
-
-                      <button
-                        onClick={() => handleSoftDeleteResource(res)}
-                        className={`px-3 py-1.5 rounded-[6px] font-semibold text-xs transition-colors cursor-pointer ${
-                          res.status === 'SUSPENDED'
-                            ? 'bg-[#242424] text-white hover:bg-red-700'
-                            : 'bg-[#F0EDE8]/40 text-[#8A8070] cursor-not-allowed'
-                        }`}
-                        title={
-                          res.status !== 'SUSPENDED'
-                            ? 'Must be SUSPENDED before deletion (BR-RESOURCE-01)'
-                            : 'Soft delete resource'
-                        }
-                      >
-                        Delete
-                      </button>
-                      </div>
+                    <td className="py-3.5 px-3 text-right">
+                      <ResourceRowActions
+                        resource={res}
+                        onEdit={openForm}
+                        onEditHours={setSchedulingResource}
+                        onToggleStatus={toggleResourceStatus}
+                        onDelete={handleSoftDeleteResource}
+                      />
                     </td>
                   </tr>
                 ))}
@@ -340,6 +319,18 @@ export const Administration: React.FC = () => {
           serverErrors={formFieldErrors}
           onClose={closeForm}
           onSubmit={handleSubmitResource}
+        />
+      )}
+
+      {schedulingResource && (
+        <ResourceScheduleModal
+          key={schedulingResource.id}
+          resource={schedulingResource}
+          onClose={() => setSchedulingResource(null)}
+          onSaved={(saved) => {
+            setSchedulingResource(null);
+            showNotice(`Operating hours for "${saved.name}" saved.`);
+          }}
         />
       )}
 

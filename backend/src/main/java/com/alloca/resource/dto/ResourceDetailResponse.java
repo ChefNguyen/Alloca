@@ -27,7 +27,7 @@ public record ResourceDetailResponse(
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm:ss");
 
     public record Schedule(UUID id, DayOfWeek dayOfWeek, String startTime, String endTime) {
-        static Schedule from(ResourceSchedule schedule) {
+        public static Schedule from(ResourceSchedule schedule) {
             return new Schedule(
                     schedule.getId(),
                     DayOfWeek.of(schedule.getDayOfWeek()),

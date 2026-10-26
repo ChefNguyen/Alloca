@@ -1,5 +1,14 @@
 import { apiRequest } from '@/lib/api';
-import { Department, Resource, ResourceDetail, ResourceStatus, ResourceType, Zone } from '@/types/api';
+import {
+  DayOfWeek,
+  Department,
+  Resource,
+  ResourceDetail,
+  ResourceSchedule,
+  ResourceStatus,
+  ResourceType,
+  Zone,
+} from '@/types/api';
 
 export interface Page<T> {
   items: T[];
@@ -52,3 +61,20 @@ export const deleteResource = (id: string) => apiRequest<void>(`/api/v1/resource
 export const listZones = () => apiRequest<Zone[]>('/api/v1/zones');
 
 export const listDepartments = () => apiRequest<Department[]>('/api/v1/departments');
+
+// Mirrors ResourceScheduleInput; times are "HH:mm" or "HH:mm:ss" in the business timezone.
+export interface ScheduleWindowInput {
+  dayOfWeek: DayOfWeek;
+  startTime: string;
+  endTime: string;
+}
+
+export const getSchedules = (resourceId: string) =>
+  apiRequest<ResourceSchedule[]>(`/api/v1/resources/${resourceId}/schedules`);
+
+/** Replaces the whole weekly schedule; the server rejects it with 409 if bookings would fall outside. */
+export const replaceSchedules = (resourceId: string, schedules: ScheduleWindowInput[]) =>
+  apiRequest<ResourceSchedule[]>(`/api/v1/resources/${resourceId}/schedules`, {
+    method: 'PUT',
+    ...json({ schedules }),
+  });

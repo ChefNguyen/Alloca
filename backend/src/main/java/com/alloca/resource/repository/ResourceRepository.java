@@ -2,7 +2,9 @@ package com.alloca.resource.repository;
 
 import com.alloca.resource.domain.Resource;
 import jakarta.persistence.LockModeType;
+import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -40,4 +42,35 @@ public interface ResourceRepository extends JpaRepository<Resource, UUID>, JpaSp
             order by b.start_time
             """, nativeQuery = true)
     List<UUID> findActiveConfirmedBookingIds(@Param("resourceId") UUID resourceId, @Param("now") Instant now);
+
+    /** An ongoing or upcoming CONFIRMED booking, with its interval in UTC. */
+    record ActiveBooking(UUID id, Instant startTime, Instant endTime) {
+    }
+
+    /** Raw rows {@code [id, start_time, end_time]}; use {@link #findActiveConfirmedBookings}. */
+    @Query(value = """
+            select b.id, b.start_time, b.end_time from bookings b
+            where b.resource_id = :resourceId
+              and b.status = 'CONFIRMED'
+              and b.end_time > :now
+            order by b.start_time
+            """, nativeQuery = true)
+    List<Object[]> findActiveConfirmedBookingRows(@Param("resourceId") UUID resourceId, @Param("now") Instant now);
+
+    default List<ActiveBooking> findActiveConfirmedBookings(UUID resourceId, Instant now) {
+        return findActiveConfirmedBookingRows(resourceId, now).stream()
+                .map(row -> new ActiveBooking((UUID) row[0], toInstant(row[1]), toInstant(row[2])))
+                .toList();
+    }
+
+    /** The driver may return any of these for timestamptz, depending on Hibernate/JDBC settings. */
+    private static Instant toInstant(Object value) {
+        return switch (value) {
+            case Instant instant -> instant;
+            case OffsetDateTime offsetDateTime -> offsetDateTime.toInstant();
+            case Timestamp timestamp -> timestamp.toInstant();
+            case java.util.Date date -> date.toInstant();
+            default -> throw new IllegalStateException("Unexpected timestamp type " + value.getClass());
+        };
+    }
 }
