@@ -22,13 +22,26 @@ const RoleRoute: React.FC<{
   return children;
 };
 
+// Everything under the app shell needs a signed-in user.
+const RequireAuth: React.FC<{ children: React.ReactElement }> = ({ children }) => {
+  const { isAuthenticated } = useAuth();
+  return isAuthenticated ? children : <Navigate to="/login" replace />;
+};
+
 export const AppRoutes: React.FC = () => {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
 
       {/* Main Authenticated Layout */}
-      <Route path="/" element={<AppLayout />}>
+      <Route
+        path="/"
+        element={
+          <RequireAuth>
+            <AppLayout />
+          </RequireAuth>
+        }
+      >
         <Route index element={<Dashboard />} />
         <Route path="find-resource" element={<FindResource />} />
         <Route path="resources/:id" element={<ResourceDetail />} />

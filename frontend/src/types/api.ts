@@ -2,7 +2,7 @@
 
 export type Role = 'EMPLOYEE' | 'MANAGER' | 'ADMIN';
 
-export type ResourceType = 'MEETING_ROOM' | 'DESK' | 'EQUIPMENT';
+export type ResourceType = 'ROOM' | 'DESK' | 'EQUIPMENT';
 
 export type ResourceStatus = 'AVAILABLE' | 'SUSPENDED' | 'DELETED' | 'PARTIAL' | 'BOOKED' | 'OCCUPIED';
 

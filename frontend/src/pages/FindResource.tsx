@@ -308,7 +308,7 @@ export const FindResource: React.FC = () => {
               className="h-9 px-3 rounded-[6px] bg-[#F0EDE8]/60 text-xs font-semibold border-0 text-[#242424]"
             >
               <option value="ALL">All Spaces</option>
-              <option value="MEETING_ROOM">Meeting Rooms</option>
+              <option value="ROOM">Meeting Rooms</option>
               <option value="DESK">Desks</option>
               <option value="EQUIPMENT">Equipment</option>
             </select>

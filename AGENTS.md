@@ -17,6 +17,12 @@
 - Guide the user step-by-step through technical implementation, explaining the architectural *Why, What, and How*.
 - After completing each work item, quiz the user with core focal questions (using interactive multiple-choice or open questions) to verify deep conceptual mastery before proceeding to the next work item.
 
+## 4. Testing Policy
+- Every new feature or behavior change must ship with unit tests in the same change (backend: JUnit 5 + Mockito under `backend/src/test`, mirroring the main package; controllers via `@WebMvcTest`, services with mocked repositories, domain logic with plain tests).
+- Cover the happy path plus each business-rule rejection and validation error the feature introduces.
+- Before creating a pull request, run `./backend/mvnw -f backend/pom.xml test` and make sure it passes. Do not open a PR with failing or skipped-to-pass tests, and report the result in the PR description.
+- Bug fixes need a regression test that fails without the fix.
+
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 

@@ -99,7 +99,7 @@ export const mockResources: ResourceDetail[] = [
   {
     id: 'res-301',
     name: 'Boardroom West 301',
-    type: 'MEETING_ROOM',
+    type: 'ROOM',
     capacity: 12,
     status: 'AVAILABLE',
     description: 'High-definition 85" Dual Displays, 4K PTZ Camera, Jabra Microphones, Whiteboard wall.',
@@ -112,7 +112,7 @@ export const mockResources: ResourceDetail[] = [
   {
     id: 'res-pod-a',
     name: 'Meeting Pod A',
-    type: 'MEETING_ROOM',
+    type: 'ROOM',
     capacity: 4,
     status: 'PARTIAL',
     description: 'Acoustic soundproof booth with 50" Screen and HDMI/AirPlay support.',
@@ -125,7 +125,7 @@ export const mockResources: ResourceDetail[] = [
   {
     id: 'res-pod-b',
     name: 'Meeting Pod B',
-    type: 'MEETING_ROOM',
+    type: 'ROOM',
     capacity: 4,
     status: 'BOOKED',
     description: 'Sound-dampening glass pod with dual monitor docking.',
@@ -190,7 +190,7 @@ export const mockResources: ResourceDetail[] = [
   {
     id: 'res-booth-1',
     name: 'Phone Booth 01',
-    type: 'MEETING_ROOM',
+    type: 'ROOM',
     capacity: 1,
     status: 'AVAILABLE',
     description: 'Framery sound-isolation single pod for confidential private phone calls.',

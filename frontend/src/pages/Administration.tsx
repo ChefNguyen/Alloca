@@ -1,41 +1,143 @@
-import React, { useState } from 'react';
-import { mockResources, mockZones, mockUsers, mockDepartments } from '@/mock/data';
-import { ResourceDetail, ResourceStatus, User } from '@/types/api';
+import React, { useCallback, useEffect, useState } from 'react';
+import { mockUsers } from '@/mock/data';
+import { ResourceFormModal, ResourceFormValues } from '@/components/admin/ResourceFormModal';
+import { ApiError } from '@/lib/api';
+import {
+  createResource,
+  deleteResource,
+  listDepartments,
+  listResources,
+  listZones,
+  updateResource,
+  updateResourceStatus,
+} from '@/services/resourceApi';
+import { Department, Resource, User, Zone } from '@/types/api';
+
+const describeError = (error: unknown): string => {
+  if (!(error instanceof ApiError)) return 'Something went wrong. Please try again.';
+  const bookingIds = error.details.conflictingBookingIds;
+  if (error.status === 409 && Array.isArray(bookingIds)) {
+    return `Cannot delete: ${bookingIds.length} ongoing or upcoming CONFIRMED booking(s) still use this resource (${bookingIds.join(', ')}). Cancel or move them first.`;
+  }
+  return error.message;
+};
 
 export const Administration: React.FC = () => {
   const [activeTab, setActiveTab] = useState<
     'resources' | 'zones' | 'users' | 'departments' | 'settings'
   >('resources');
 
-  const [resources, setResources] = useState<ResourceDetail[]>(mockResources);
+  const [resources, setResources] = useState<Resource[]>([]);
+  const [totalResources, setTotalResources] = useState(0);
+  const [zones, setZones] = useState<Zone[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [users, setUsers] = useState<User[]>(mockUsers);
   const [reminderLeadTime, setReminderLeadTime] = useState<number>(15);
-  const [feedback, setFeedback] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
 
-  const toggleResourceStatus = (id: string) => {
-    setResources((prev) =>
-      prev.map((r) => {
-        if (r.id === id) {
-          const nextStatus: ResourceStatus = r.status === 'AVAILABLE' ? 'SUSPENDED' : 'AVAILABLE';
-          return { ...r, status: nextStatus };
-        }
-        return r;
+  // `editing === undefined` means the modal is closed; `null` means create mode.
+  const [editing, setEditing] = useState<Resource | null | undefined>(undefined);
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [formFieldErrors, setFormFieldErrors] = useState<Record<string, string>>({});
+
+  const loadResources = useCallback(async () => {
+    const page = await listResources({ size: 100, sort: 'name,asc' });
+    setResources(page.items);
+    setTotalResources(page.page.totalElements);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([loadResources(), listZones(), listDepartments()])
+      .then(([, loadedZones, loadedDepartments]) => {
+        if (cancelled) return;
+        setZones(loadedZones);
+        setDepartments(loadedDepartments);
+        setLoadError(null);
       })
-    );
-    showNotice('Resource status updated.');
+      .catch((error) => {
+        if (!cancelled) setLoadError(describeError(error));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [loadResources]);
+
+  const closeForm = () => {
+    setEditing(undefined);
+    setFormError(null);
+    setFormFieldErrors({});
   };
 
-  const handleSoftDeleteResource = (id: string) => {
-    const target = resources.find((r) => r.id === id);
-    if (!target) return;
+  const openForm = (resource: Resource | null) => {
+    setFormError(null);
+    setFormFieldErrors({});
+    setEditing(resource);
+  };
 
-    if (target.status !== 'SUSPENDED') {
-      alert('BR-RESOURCE-01 Rule Violation: Resource must be in SUSPENDED state before it can be deleted.');
+  const handleSubmitResource = async (values: ResourceFormValues) => {
+    setSubmitting(true);
+    setFormError(null);
+    setFormFieldErrors({});
+    try {
+      const shared = {
+        name: values.name,
+        type: values.type,
+        capacity: values.capacity,
+        description: values.description,
+        zoneId: values.zoneId,
+        departmentId: values.departmentId,
+        utilizationThreshold: values.utilizationThreshold,
+      };
+      if (editing) {
+        await updateResource(editing.id, shared);
+      } else {
+        await createResource({ ...shared, status: values.initialStatus });
+      }
+      await loadResources();
+      showNotice(editing ? `Resource "${values.name}" updated.` : `Resource "${values.name}" created.`);
+      closeForm();
+    } catch (error) {
+      if (error instanceof ApiError && error.fieldErrors.length > 0) {
+        setFormFieldErrors(Object.fromEntries(error.fieldErrors.map((e) => [e.field, e.message])));
+      }
+      setFormError(describeError(error));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const toggleResourceStatus = async (resource: Resource) => {
+    const next = resource.status === 'AVAILABLE' ? 'SUSPENDED' : 'AVAILABLE';
+    try {
+      await updateResourceStatus(resource.id, next);
+      await loadResources();
+      showNotice(`"${resource.name}" is now ${next}.`);
+    } catch (error) {
+      showNotice(describeError(error), 'error');
+    }
+  };
+
+  const handleSoftDeleteResource = async (resource: Resource) => {
+    if (resource.status !== 'SUSPENDED') {
+      showNotice('Resource must be SUSPENDED before it can be deleted (BR-RESOURCE-01).', 'error');
       return;
     }
+    if (!window.confirm(`Delete "${resource.name}"? It will be hidden from users but kept for history.`)) return;
 
-    setResources((prev) => prev.filter((r) => r.id !== id));
-    showNotice(`Resource "${target.name}" has been soft-deleted (status = DELETED).`);
+    try {
+      await deleteResource(resource.id);
+      await loadResources();
+      showNotice(`Resource "${resource.name}" has been soft-deleted (status = DELETED).`);
+    } catch (error) {
+      showNotice(describeError(error), 'error');
+    }
   };
 
   const toggleUserActive = (userId: string) => {
@@ -45,9 +147,9 @@ export const Administration: React.FC = () => {
     showNotice('User status updated. Credentials version incremented.');
   };
 
-  const showNotice = (msg: string) => {
-    setFeedback(msg);
-    setTimeout(() => setFeedback(null), 3500);
+  const showNotice = (message: string, kind: 'success' | 'error' = 'success') => {
+    setFeedback({ kind, message });
+    setTimeout(() => setFeedback(null), kind === 'error' ? 8000 : 3500);
   };
 
   return (
@@ -89,9 +191,18 @@ export const Administration: React.FC = () => {
       </div>
 
       {feedback && (
-        <div className="p-4 rounded-[6px] bg-[#FAFAF8] shadow-card text-[#242424] text-xs font-semibold flex items-center gap-2 border-0">
-          <span className="material-symbols-outlined text-[18px] text-[#22C55E]">check_circle</span>
-          <span>{feedback}</span>
+        <div
+          role={feedback.kind === 'error' ? 'alert' : 'status'}
+          className="p-4 rounded-[6px] bg-[#FAFAF8] shadow-card text-[#242424] text-xs font-semibold flex items-center gap-2 border-0"
+        >
+          <span
+            className={`material-symbols-outlined text-[18px] ${
+              feedback.kind === 'error' ? 'text-[#E05252]' : 'text-[#22C55E]'
+            }`}
+          >
+            {feedback.kind === 'error' ? 'error' : 'check_circle'}
+          </span>
+          <span>{feedback.message}</span>
         </div>
       )}
 
@@ -107,7 +218,21 @@ export const Administration: React.FC = () => {
                 Workplace Assets & Policies
               </h2>
             </div>
+            <button
+              onClick={() => openForm(null)}
+              disabled={zones.length === 0}
+              title={zones.length === 0 ? 'Create a zone first — resources must belong to a zone' : undefined}
+              className="px-4 py-2.5 rounded-[6px] bg-[#D97757] text-white text-xs font-bold shadow-card hover:opacity-95 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              + Add Resource
+            </button>
           </div>
+
+          {loadError && (
+            <div role="alert" className="p-3 rounded-[6px] bg-[#FFEBEE] text-[#C62828] text-xs font-semibold">
+              Could not load data: {loadError}
+            </div>
+          )}
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
@@ -116,18 +241,36 @@ export const Administration: React.FC = () => {
                   <th className="py-3 px-4 rounded-l-[4px]">Name</th>
                   <th className="py-3 px-4">Type</th>
                   <th className="py-3 px-4">Zone</th>
+                  <th className="py-3 px-4">Department</th>
                   <th className="py-3 px-4">Capacity</th>
                   <th className="py-3 px-4">Status</th>
                   <th className="py-3 px-4 text-right rounded-r-[4px]">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E5E0D8]/40">
+                {!loading && !loadError && resources.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="py-8 px-4 text-center text-[#8A8070]">
+                      No resources yet. Use “Add Resource” to create the first one.
+                    </td>
+                  </tr>
+                )}
+                {loading && (
+                  <tr>
+                    <td colSpan={7} className="py-8 px-4 text-center text-[#8A8070]">
+                      Loading resources…
+                    </td>
+                  </tr>
+                )}
                 {resources.map((res) => (
                   <tr key={res.id} className="hover:bg-[#F0EDE8]/30 transition-colors">
                     <td className="py-3.5 px-4 font-bold text-[#242424]">{res.name}</td>
                     <td className="py-3.5 px-4">{res.type}</td>
-                    <td className="py-3.5 px-4 text-[#8A8070]">{res.zone?.floor}</td>
-                    <td className="py-3.5 px-4">{res.capacity} seats</td>
+                    <td className="py-3.5 px-4 text-[#8A8070]">
+                      {res.zone ? `${res.zone.floor} · ${res.zone.name}` : '—'}
+                    </td>
+                    <td className="py-3.5 px-4 text-[#8A8070]">{res.department?.name ?? 'Shared'}</td>
+                    <td className="py-3.5 px-4">{res.capacity}</td>
                     <td className="py-3.5 px-4">
                       <span
                         className={`px-2.5 py-0.5 rounded-[4px] text-[10px] font-bold ${
@@ -139,16 +282,24 @@ export const Administration: React.FC = () => {
                         {res.status}
                       </span>
                     </td>
-                    <td className="py-3.5 px-4 text-right space-x-2">
+                    <td className="py-3.5 px-4">
+                      <div className="flex items-center justify-end gap-2 whitespace-nowrap">
                       <button
-                        onClick={() => toggleResourceStatus(res.id)}
+                        onClick={() => openForm(res)}
+                        className="px-3 py-1.5 rounded-[6px] bg-[#F0EDE8]/80 hover:bg-[#F0EDE8] font-semibold text-xs text-[#242424] cursor-pointer"
+                      >
+                        Edit
+                      </button>
+
+                      <button
+                        onClick={() => toggleResourceStatus(res)}
                         className="px-3 py-1.5 rounded-[6px] bg-[#F0EDE8]/80 hover:bg-[#F0EDE8] font-semibold text-xs text-[#242424] cursor-pointer"
                       >
                         {res.status === 'AVAILABLE' ? 'Suspend' : 'Activate'}
                       </button>
 
                       <button
-                        onClick={() => handleSoftDeleteResource(res.id)}
+                        onClick={() => handleSoftDeleteResource(res)}
                         className={`px-3 py-1.5 rounded-[6px] font-semibold text-xs transition-colors cursor-pointer ${
                           res.status === 'SUSPENDED'
                             ? 'bg-[#242424] text-white hover:bg-red-700'
@@ -162,13 +313,34 @@ export const Administration: React.FC = () => {
                       >
                         Delete
                       </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+          {totalResources > resources.length && (
+            <p className="text-[11px] text-[#8A8070]">
+              Showing the first {resources.length} of {totalResources} resources.
+            </p>
+          )}
         </div>
+      )}
+
+      {editing !== undefined && (
+        <ResourceFormModal
+          key={editing?.id ?? 'new'}
+          isOpen
+          resource={editing}
+          zones={zones}
+          departments={departments}
+          submitting={submitting}
+          serverError={formError}
+          serverErrors={formFieldErrors}
+          onClose={closeForm}
+          onSubmit={handleSubmitResource}
+        />
       )}
 
       {/* Tab 2: Zones & Floor Maps */}
@@ -186,7 +358,7 @@ export const Administration: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {mockZones.map((z) => (
+            {zones.map((z) => (
               <div
                 key={z.id}
                 className="p-5 rounded-[8px] bg-[#F0EDE8]/40 space-y-3.5"
@@ -199,10 +371,18 @@ export const Administration: React.FC = () => {
                 </div>
 
                 <div className="aspect-[16/9] rounded-[6px] overflow-hidden relative bg-[#F0EDE8]">
-                  <img src={z.floorMapUrl || ''} alt={z.name} className="w-full h-full object-cover" />
-                  <div className="absolute bottom-2 left-2 px-2.5 py-1 rounded-[4px] bg-[#242424]/80 text-white text-[10px] font-mono backdrop-blur-sm">
-                    {z.floorMapWidth} × {z.floorMapHeight} px
-                  </div>
+                  {z.floorMapUrl ? (
+                    <>
+                      <img src={z.floorMapUrl} alt={z.name} className="w-full h-full object-cover" />
+                      <div className="absolute bottom-2 left-2 px-2.5 py-1 rounded-[4px] bg-[#242424]/80 text-white text-[10px] font-mono backdrop-blur-sm">
+                        {z.floorMapWidth} × {z.floorMapHeight} px
+                      </div>
+                    </>
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-xs text-[#8A8070]">
+                      No floor map uploaded
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-between pt-1 text-xs">
@@ -303,7 +483,7 @@ export const Administration: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {mockDepartments.map((dept) => (
+            {departments.map((dept) => (
               <div
                 key={dept.id}
                 className="p-5 rounded-[8px] bg-[#F0EDE8]/40 space-y-2.5"

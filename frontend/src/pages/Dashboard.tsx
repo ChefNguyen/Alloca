@@ -37,7 +37,7 @@ export const Dashboard: React.FC = () => {
 
   const formatResourceType = (type: string) => {
     switch (type) {
-      case 'MEETING_ROOM':
+      case 'ROOM':
         return 'Meeting Room';
       case 'POD':
         return 'Phone Pod';
@@ -366,7 +366,7 @@ export const Dashboard: React.FC = () => {
                 <div className="inline-flex p-1 bg-[#F0EDE8] rounded-[8px] gap-1">
                   {[
                     { key: 'ALL', label: 'All Spaces' },
-                    { key: 'MEETING_ROOM', label: 'Meeting Rooms' },
+                    { key: 'ROOM', label: 'Meeting Rooms' },
                     { key: 'POD', label: 'Pods' },
                     { key: 'DESK', label: 'Desks' },
                   ].map((tab) => (
