@@ -88,9 +88,9 @@ export const mockZones: Zone[] = [
   },
 ];
 
-const defaultSchedules = [1, 2, 3, 4, 5].map((day) => ({
+const defaultSchedules = (['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'] as const).map((day) => ({
   id: `sch-${day}`,
-  dayOfWeek: day as any,
+  dayOfWeek: day,
   startTime: '08:00:00',
   endTime: '18:00:00',
 }));

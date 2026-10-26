@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { mockResources, mockBookings } from '@/mock/data';
 import { BookingModal } from '@/components/booking/BookingModal';
+import { WEEKDAYS } from '@/lib/weekdays';
 
 export const ResourceDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -102,8 +103,7 @@ export const ResourceDetail: React.FC = () => {
 
             <div className="divide-y divide-[#E5E0D8]/40 border border-[#E5E0D8]/60 rounded-[6px] overflow-hidden">
               {days.map((dayName, idx) => {
-                const dayNum = (idx + 1) as any;
-                const schedule = resource.schedules.find((s) => s.dayOfWeek === dayNum);
+                const schedule = resource.schedules.find((s) => s.dayOfWeek === WEEKDAYS[idx].key);
                 return (
                   <div key={dayName} className="p-3 flex items-center justify-between text-xs hover:bg-[#F0EDE8]/40">
                     <span className="font-semibold text-[#242424]">{dayName}</span>

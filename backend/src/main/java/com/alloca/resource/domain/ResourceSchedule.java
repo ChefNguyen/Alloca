@@ -4,6 +4,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.DayOfWeek;
 import java.time.LocalTime;
 import java.util.UUID;
 import lombok.AccessLevel;
@@ -31,4 +32,12 @@ public class ResourceSchedule {
 
     @Column(name = "end_time", nullable = false)
     private LocalTime endTime;
+
+    public ResourceSchedule(UUID id, UUID resourceId, DayOfWeek dayOfWeek, LocalTime startTime, LocalTime endTime) {
+        this.id = id;
+        this.resourceId = resourceId;
+        this.dayOfWeek = (short) dayOfWeek.getValue();
+        this.startTime = startTime;
+        this.endTime = endTime;
+    }
 }
