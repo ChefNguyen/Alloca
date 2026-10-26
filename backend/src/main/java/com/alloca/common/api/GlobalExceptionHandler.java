@@ -110,4 +110,6 @@ public class GlobalExceptionHandler {
                              .contentType(PROBLEM_JSON)
                              .body(error);
     }
+
+    
 }
