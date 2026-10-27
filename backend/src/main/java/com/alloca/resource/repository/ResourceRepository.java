@@ -65,12 +65,15 @@ public interface ResourceRepository extends JpaRepository<Resource, UUID>, JpaSp
 
     /** The driver may return any of these for timestamptz, depending on Hibernate/JDBC settings. */
     private static Instant toInstant(Object value) {
-        return switch (value) {
-            case Instant instant -> instant;
-            case OffsetDateTime offsetDateTime -> offsetDateTime.toInstant();
-            case Timestamp timestamp -> timestamp.toInstant();
-            case java.util.Date date -> date.toInstant();
-            default -> throw new IllegalStateException("Unexpected timestamp type " + value.getClass());
-        };
+        if (value instanceof Instant instant) {
+            return instant;
+        } else if (value instanceof OffsetDateTime offsetDateTime) {
+            return offsetDateTime.toInstant();
+        } else if (value instanceof Timestamp timestamp) {
+            return timestamp.toInstant();
+        } else if (value instanceof java.util.Date date) {
+            return date.toInstant();
+        }
+        throw new IllegalStateException("Unexpected timestamp type " + (value != null ? value.getClass() : "null"));
     }
 }
