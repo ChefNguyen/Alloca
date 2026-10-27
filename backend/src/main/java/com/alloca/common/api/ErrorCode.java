@@ -4,6 +4,9 @@ package com.alloca.common.api;
 public enum ErrorCode {
     VALIDATION_ERROR,
     ACCESS_DENIED,
+    USER_NOT_FOUND,
+    USERNAME_ALREADY_EXISTS,
+    EMAIL_ALREADY_EXISTS,
     DEPARTMENT_NOT_FOUND,
     ZONE_NOT_FOUND,
     RESOURCE_NOT_FOUND,
