@@ -60,7 +60,33 @@ export const deleteResource = (id: string) => apiRequest<void>(`/api/v1/resource
 
 export const listZones = () => apiRequest<Zone[]>('/api/v1/zones');
 
+// Mirrors ZoneWriteRequest; create and update both send every field.
+export interface ZoneWriteInput {
+  name: string;
+  floor: string;
+  building: string;
+}
+
+export const createZone = (input: ZoneWriteInput) =>
+  apiRequest<Zone>('/api/v1/zones', { method: 'POST', ...json(input) });
+
+export const updateZone = (id: string, input: ZoneWriteInput) =>
+  apiRequest<Zone>(`/api/v1/zones/${id}`, { method: 'PATCH', ...json(input) });
+
+/** Rejected with 409 ZONE_IN_USE while any resource still belongs to the zone. */
+export const deleteZone = (id: string) => apiRequest<void>(`/api/v1/zones/${id}`, { method: 'DELETE' });
+
 export const listDepartments = () => apiRequest<Department[]>('/api/v1/departments');
+
+export const createDepartment = (name: string) =>
+  apiRequest<Department>('/api/v1/departments', { method: 'POST', ...json({ name }) });
+
+export const updateDepartment = (id: string, name: string) =>
+  apiRequest<Department>(`/api/v1/departments/${id}`, { method: 'PATCH', ...json({ name }) });
+
+/** Rejected with 409 DEPARTMENT_IN_USE while users or resources still reference it. */
+export const deleteDepartment = (id: string) =>
+  apiRequest<void>(`/api/v1/departments/${id}`, { method: 'DELETE' });
 
 // Mirrors ResourceScheduleInput; times are "HH:mm" or "HH:mm:ss" in the business timezone.
 export interface ScheduleWindowInput {

@@ -3,17 +3,37 @@ import { mockUsers } from '@/mock/data';
 import { ResourceFormModal, ResourceFormValues } from '@/components/admin/ResourceFormModal';
 import { ResourceRowActions } from '@/components/admin/ResourceRowActions';
 import { ResourceScheduleModal } from '@/components/admin/ResourceScheduleModal';
+import { SimpleField, SimpleFormModal } from '@/components/admin/SimpleFormModal';
 import { ApiError } from '@/lib/api';
 import {
+  createDepartment,
   createResource,
+  createZone,
+  deleteDepartment,
   deleteResource,
+  deleteZone,
   listDepartments,
   listResources,
   listZones,
+  updateDepartment,
   updateResource,
   updateResourceStatus,
+  updateZone,
 } from '@/services/resourceApi';
 import { Department, Resource, User, Zone } from '@/types/api';
+
+// Mirror ZoneWriteRequest / DepartmentWriteRequest limits in docs/api/openapi.yaml
+const ZONE_FIELDS: SimpleField[] = [
+  { name: 'name', label: 'Zone name', maxLength: 100, placeholder: 'e.g. West Wing' },
+  { name: 'floor', label: 'Floor', maxLength: 50, placeholder: 'e.g. Level 3' },
+  { name: 'building', label: 'Building', maxLength: 100, placeholder: 'e.g. Tower A' },
+];
+const DEPARTMENT_FIELDS: SimpleField[] = [
+  { name: 'name', label: 'Department name', maxLength: 100, placeholder: 'e.g. Engineering' },
+];
+
+// `target === null` means create mode.
+type EntityForm = { kind: 'zone'; target: Zone | null } | { kind: 'department'; target: Department | null };
 
 const describeError = (error: unknown): string => {
   if (!(error instanceof ApiError)) return 'Something went wrong. Please try again.';
@@ -45,6 +65,7 @@ export const Administration: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [formFieldErrors, setFormFieldErrors] = useState<Record<string, string>>({});
+  const [entityForm, setEntityForm] = useState<EntityForm | null>(null);
 
   const loadResources = useCallback(async () => {
     const page = await listResources({ size: 100, sort: 'name,asc' });
@@ -82,6 +103,87 @@ export const Administration: React.FC = () => {
     setFormError(null);
     setFormFieldErrors({});
     setEditing(resource);
+  };
+
+  const openEntityForm = (form: EntityForm) => {
+    setFormError(null);
+    setFormFieldErrors({});
+    setEntityForm(form);
+  };
+
+  const closeEntityForm = () => {
+    setEntityForm(null);
+    setFormError(null);
+    setFormFieldErrors({});
+  };
+
+  // Resources embed zone/department summaries, so they are reloaded after a rename too.
+  const reloadZones = async () => {
+    const [loadedZones] = await Promise.all([listZones(), loadResources()]);
+    setZones(loadedZones);
+  };
+
+  const reloadDepartments = async () => {
+    const [loadedDepartments] = await Promise.all([listDepartments(), loadResources()]);
+    setDepartments(loadedDepartments);
+  };
+
+  const handleSubmitEntity = async (values: Record<string, string>) => {
+    if (!entityForm) return;
+    setSubmitting(true);
+    setFormError(null);
+    setFormFieldErrors({});
+    try {
+      if (entityForm.kind === 'zone') {
+        const input = { name: values.name, floor: values.floor, building: values.building };
+        if (entityForm.target) await updateZone(entityForm.target.id, input);
+        else await createZone(input);
+        await reloadZones();
+        showNotice(entityForm.target ? `Zone "${values.name}" updated.` : `Zone "${values.name}" created.`);
+      } else {
+        if (entityForm.target) await updateDepartment(entityForm.target.id, values.name);
+        else await createDepartment(values.name);
+        await reloadDepartments();
+        showNotice(
+          entityForm.target ? `Department "${values.name}" updated.` : `Department "${values.name}" created.`
+        );
+      }
+      closeEntityForm();
+    } catch (error) {
+      if (error instanceof ApiError && error.fieldErrors.length > 0) {
+        setFormFieldErrors(Object.fromEntries(error.fieldErrors.map((e) => [e.field, e.message])));
+      }
+      setFormError(describeError(error));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteZone = async (zone: Zone) => {
+    if (
+      !window.confirm(
+        `Delete zone "${zone.name}" (${zone.building} · ${zone.floor})? It will be hidden but kept for booking history.`
+      )
+    )
+      return;
+    try {
+      await deleteZone(zone.id);
+      await reloadZones();
+      showNotice(`Zone "${zone.name}" deleted.`);
+    } catch (error) {
+      showNotice(describeError(error), 'error');
+    }
+  };
+
+  const handleDeleteDepartment = async (department: Department) => {
+    if (!window.confirm(`Delete department "${department.name}"?`)) return;
+    try {
+      await deleteDepartment(department.id);
+      await reloadDepartments();
+      showNotice(`Department "${department.name}" deleted.`);
+    } catch (error) {
+      showNotice(describeError(error), 'error');
+    }
   };
 
   const handleSubmitResource = async (values: ResourceFormValues) => {
@@ -196,7 +298,8 @@ export const Administration: React.FC = () => {
       {feedback && (
         <div
           role={feedback.kind === 'error' ? 'alert' : 'status'}
-          className="p-4 rounded-[6px] bg-[#FAFAF8] shadow-card text-[#242424] text-xs font-semibold flex items-center gap-2 border-0"
+          // Fixed so the notice is visible however far the page is scrolled.
+          className="fixed top-4 right-4 z-[60] max-w-md p-4 rounded-[6px] bg-[#FAFAF8] shadow-xl border border-[#E5E0D8] text-[#242424] text-xs font-semibold flex items-center gap-2"
         >
           <span
             className={`material-symbols-outlined text-[18px] ${
@@ -270,7 +373,7 @@ export const Administration: React.FC = () => {
                     <td className="py-3.5 px-3 font-bold text-[#242424]">{res.name}</td>
                     <td className="py-3.5 px-3">{res.type}</td>
                     <td className="py-3.5 px-3 text-[#8A8070] min-w-[9rem]">
-                      {res.zone ? `${res.zone.floor} · ${res.zone.name}` : '—'}
+                      {res.zone ? `${res.zone.building} · ${res.zone.floor} · ${res.zone.name}` : '—'}
                     </td>
                     <td className="py-3.5 px-3 text-[#8A8070]">{res.department?.name ?? 'Shared'}</td>
                     <td className="py-3.5 px-3">{res.capacity}</td>
@@ -322,6 +425,36 @@ export const Administration: React.FC = () => {
         />
       )}
 
+      {entityForm && (
+        <SimpleFormModal
+          key={`${entityForm.kind}-${entityForm.target?.id ?? 'new'}`}
+          eyebrow={entityForm.kind === 'zone' ? 'Zones & Floor Maps' : 'Organizational Structure'}
+          title={
+            entityForm.target
+              ? `Edit "${entityForm.target.name}"`
+              : entityForm.kind === 'zone'
+                ? 'Create a New Zone'
+                : 'Create a New Department'
+          }
+          fields={entityForm.kind === 'zone' ? ZONE_FIELDS : DEPARTMENT_FIELDS}
+          initialValues={
+            entityForm.kind === 'zone'
+              ? {
+                  name: entityForm.target?.name ?? '',
+                  floor: entityForm.target?.floor ?? '',
+                  building: entityForm.target?.building ?? '',
+                }
+              : { name: entityForm.target?.name ?? '' }
+          }
+          submitLabel={entityForm.target ? 'Save Changes' : entityForm.kind === 'zone' ? 'Create Zone' : 'Create Department'}
+          submitting={submitting}
+          serverError={formError}
+          serverErrors={formFieldErrors}
+          onClose={closeEntityForm}
+          onSubmit={handleSubmitEntity}
+        />
+      )}
+
       {schedulingResource && (
         <ResourceScheduleModal
           key={schedulingResource.id}
@@ -346,7 +479,19 @@ export const Administration: React.FC = () => {
                 Floor Blueprints & Boundaries
               </h2>
             </div>
+            <button
+              onClick={() => openEntityForm({ kind: 'zone', target: null })}
+              className="px-4 py-2.5 rounded-[6px] bg-[#D97757] text-white text-xs font-bold shadow-card hover:opacity-95 transition-all cursor-pointer"
+            >
+              + Add Zone
+            </button>
           </div>
+
+          {!loading && zones.length === 0 && (
+            <p className="py-8 text-center text-xs text-[#8A8070]">
+              No zones yet. Create a zone (building + floor) before adding resources to it.
+            </p>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {zones.map((z) => (
@@ -380,6 +525,20 @@ export const Administration: React.FC = () => {
                   <span className="text-[#8A8070]">Building: {z.building}</span>
                   <button className="text-[#242424] font-semibold hover:underline cursor-pointer">
                     Upload new blueprint →
+                  </button>
+                </div>
+                <div className="flex items-center justify-end gap-4 pt-2.5 border-t border-[#E5E0D8]/60 text-xs">
+                  <button
+                    onClick={() => openEntityForm({ kind: 'zone', target: z })}
+                    className="text-[#242424] font-semibold hover:underline cursor-pointer"
+                  >
+                    Edit zone
+                  </button>
+                  <button
+                    onClick={() => handleDeleteZone(z)}
+                    className="text-[#E05252] font-semibold hover:underline cursor-pointer"
+                  >
+                    Delete
                   </button>
                 </div>
               </div>
@@ -471,6 +630,12 @@ export const Administration: React.FC = () => {
                 Departments & Allocation Budgets
               </h2>
             </div>
+            <button
+              onClick={() => openEntityForm({ kind: 'department', target: null })}
+              className="px-4 py-2.5 rounded-[6px] bg-[#D97757] text-white text-xs font-bold shadow-card hover:opacity-95 transition-all cursor-pointer"
+            >
+              + Add Department
+            </button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -488,9 +653,20 @@ export const Administration: React.FC = () => {
                 </p>
                 <div className="pt-2.5 border-t border-[#E5E0D8]/60 flex items-center justify-between text-xs">
                   <span className="font-medium text-[#22C55E]">● Active department</span>
-                  <button className="text-[#242424] font-semibold hover:underline cursor-pointer">
-                    Edit department →
-                  </button>
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={() => openEntityForm({ kind: 'department', target: dept })}
+                      className="text-[#242424] font-semibold hover:underline cursor-pointer"
+                    >
+                      Edit department →
+                    </button>
+                    <button
+                      onClick={() => handleDeleteDepartment(dept)}
+                      className="text-[#E05252] font-semibold hover:underline cursor-pointer"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}

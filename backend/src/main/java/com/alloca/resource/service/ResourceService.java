@@ -208,6 +208,7 @@ public class ResourceService {
 
     private Zone findZone(UUID zoneId) {
         return zoneRepository.findById(zoneId)
+                .filter(found -> !found.isDeleted())
                 .orElseThrow(() -> ApiException.notFound(ErrorCode.ZONE_NOT_FOUND, "Zone not found: " + zoneId));
     }
 

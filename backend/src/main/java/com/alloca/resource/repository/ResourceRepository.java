@@ -1,6 +1,7 @@
 package com.alloca.resource.repository;
 
 import com.alloca.resource.domain.Resource;
+import com.alloca.resource.domain.ResourceStatus;
 import jakarta.persistence.LockModeType;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -27,6 +28,12 @@ public interface ResourceRepository extends JpaRepository<Resource, UUID>, JpaSp
     @EntityGraph(attributePaths = {"zone", "department"})
     @Query("select r from Resource r where r.id = :id")
     Optional<Resource> findWithRelationsById(@Param("id") UUID id);
+
+    /** Resources that block deleting a zone; pass {@code DELETED} to skip soft-deleted ones. */
+    long countByZone_IdAndStatusNot(UUID zoneId, ResourceStatus status);
+
+    /** Counts every row, soft-deleted ones included: they keep their FK to the department. */
+    long countByDepartment_Id(UUID departmentId);
 
     /** {@code SELECT ... FOR UPDATE} on the resource row (BR-RESOURCE-02 transactional lock). */
     @Lock(LockModeType.PESSIMISTIC_WRITE)

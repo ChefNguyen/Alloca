@@ -27,7 +27,8 @@ Tài liệu này là **Single Source of Truth** cho việc thiết kế Resource
 - **Phân loại sở hữu Resource**:
   - Resource có thể thuộc về một phòng ban (`department_id != null`) hoặc là tài nguyên dùng chung toàn công ty (`department_id = null` - shared resource).
   - Phòng ban sở hữu **chỉ dùng để xác định phạm vi nhận báo cáo / alert sử dụng**, **không tạo giới hạn ai được phép đặt**. Nhân viên phòng ban A vẫn được quyền đặt resource thuộc phòng ban B nếu resource đó đang `AVAILABLE`.
-- **Soft-delete quan hệ**: Xóa mềm User là deactivate tài khoản. Xóa Zone/Department bị chặn nếu còn resource hoặc user tham chiếu.
+- **Soft-delete quan hệ**: Xóa mềm User là deactivate tài khoản. Xóa Department bị chặn nếu còn resource hoặc user tham chiếu.
+- **Xóa Zone (ALC-31)**: bị chặn nếu còn resource **chưa bị xóa mềm** trong zone. Resource đã xóa mềm vẫn giữ `zone_id` để phục vụ lịch sử, nên zone được xóa mềm (`deleted_at`): ẩn khỏi danh sách, không thể gán cho resource mới, và được coi như không tồn tại (404).
 
 ---
 

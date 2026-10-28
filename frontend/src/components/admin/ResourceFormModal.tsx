@@ -195,7 +195,7 @@ export const ResourceFormModal: React.FC<ResourceFormModalProps> = ({
               >
                 {zones.map((z) => (
                   <option key={z.id} value={z.id}>
-                    {z.floor} · {z.name}
+                    {z.building} · {z.floor} · {z.name}
                   </option>
                 ))}
               </select>
