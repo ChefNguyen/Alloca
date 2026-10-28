@@ -89,6 +89,15 @@ class ResourceServiceTest {
     }
 
     @Test
+    void createRejectsDeletedZone() {
+        zone.markDeleted(NOW);
+        assertThatThrownBy(() -> service.create(new ResourceCreateRequest(
+                "Projector", ResourceType.EQUIPMENT, 1, null, null, zone.getId(), null, null)))
+                .isInstanceOfSatisfying(ApiException.class,
+                        ex -> assertThat(ex.getCode()).isEqualTo(ErrorCode.ZONE_NOT_FOUND));
+    }
+
+    @Test
     void updateOnlyTouchesPresentFieldsAndExplicitNullMakesResourceShared() {
         Resource resource = existing(ResourceStatus.AVAILABLE);
         resource.setDescription("keep me");

@@ -54,6 +54,7 @@ erDiagram
         string floor_map_url "nullable"
         int floor_map_width "pixel ảnh gốc"
         int floor_map_height "pixel ảnh gốc"
+        timestamp deleted_at "nullable, soft delete"
     }
 
     RESOURCES {

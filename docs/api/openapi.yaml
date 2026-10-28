@@ -433,7 +433,8 @@ paths:
     delete:
       tags: [Zones]
       operationId: deleteZone
-      summary: Xóa khu vực không chứa tài nguyên
+      summary: Xóa mềm khu vực không còn tài nguyên chưa xóa
+      description: Bị chặn (409 ZONE_IN_USE) khi còn resource chưa bị xóa mềm trong khu vực. Resource đã xóa mềm vẫn giữ tham chiếu tới khu vực để phục vụ lịch sử, nên khu vực chỉ bị ẩn (deleted_at), không bị xóa vật lý; sau đó nó được coi như không tồn tại (404).
       x-roles: [ADMIN]
       responses:
         '204': { description: Khu vực đã xóa }
@@ -1753,6 +1754,7 @@ components:
             - EMAIL_ALREADY_EXISTS
             - DEPARTMENT_NOT_FOUND
             - DEPARTMENT_IN_USE
+            - DEPARTMENT_NAME_ALREADY_EXISTS
             - ZONE_NOT_FOUND
             - ZONE_IN_USE
             - RESOURCE_NOT_FOUND

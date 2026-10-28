@@ -46,4 +46,6 @@ public interface UserRepository extends JpaRepository<User, UUID> {
             @Param("q") String q,
             Pageable pageable
     );
+
+    long countByDepartment_Id(UUID departmentId);
 }
