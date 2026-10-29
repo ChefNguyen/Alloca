@@ -1,25 +1,65 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { mockResources } from '@/mock/data';
 import { BookingModal } from '@/components/booking/BookingModal';
+import { ApiError } from '@/lib/api';
+import { listResources, Page } from '@/services/resourceApi';
+import { Resource, ResourceType } from '@/types/api';
+
+const PAGE_SIZE = 10;
+
+type TypeFilter = 'ALL' | ResourceType;
+
+// The page and filter a response belongs to; while it differs from the current one, the list is loading.
+interface ListResult {
+  key: string;
+  page: Page<Resource> | null;
+  error: string | null;
+}
 
 export const FindResource: React.FC = () => {
   const navigate = useNavigate();
 
   const [selectedLevel, setSelectedLevel] = useState<string>('Level 3');
-  const [viewMode, setViewMode] = useState<'map' | 'list'>('map');
+  // The 2D map still shows demo data (floor map stories); the list reads the API.
+  const [viewMode, setViewMode] = useState<'map' | 'list'>('list');
   const [selectedResourceId, setSelectedResourceId] = useState<string>('res-301');
   const [zoomLevel, setZoomLevel] = useState<number>(1);
   const [isBookingOpen, setIsBookingOpen] = useState<boolean>(false);
-  const [typeFilter, setTypeFilter] = useState<string>('ALL');
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('ALL');
+  const [pageNumber, setPageNumber] = useState(0);
+  const [listResult, setListResult] = useState<ListResult | null>(null);
 
   const selectedResource =
     mockResources.find((r) => r.id === selectedResourceId) || mockResources[0];
 
-  const filteredResources = mockResources.filter((r) => {
-    if (typeFilter === 'ALL') return true;
-    return r.type === typeFilter;
-  });
+  const listKey = `${typeFilter}:${pageNumber}`;
+  const listLoading = listResult?.key !== listKey;
+  const page = listLoading ? null : listResult.page;
+  const listError = listLoading ? null : listResult.error;
+  const listedResources = page?.items ?? [];
+
+  useEffect(() => {
+    let cancelled = false;
+    const key = `${typeFilter}:${pageNumber}`;
+    listResources({
+      page: pageNumber,
+      size: PAGE_SIZE,
+      sort: 'name,asc',
+      type: typeFilter === 'ALL' ? undefined : typeFilter,
+    })
+      .then((loaded) => {
+        if (!cancelled) setListResult({ key, page: loaded, error: null });
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        const message = error instanceof ApiError ? error.message : 'Could not load resources.';
+        setListResult({ key, page: null, error: message });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [typeFilter, pageNumber]);
 
   return (
     <div className="flex flex-col w-full p-6 lg:p-8 space-y-6 bg-[#F0EDE8] min-h-screen">
@@ -304,7 +344,10 @@ export const FindResource: React.FC = () => {
 
             <select
               value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
+              onChange={(e) => {
+                setTypeFilter(e.target.value as TypeFilter);
+                setPageNumber(0);
+              }}
               className="h-9 px-3 rounded-[6px] bg-[#F0EDE8]/60 text-xs font-semibold border-0 text-[#242424]"
             >
               <option value="ALL">All Spaces</option>
@@ -320,16 +363,45 @@ export const FindResource: React.FC = () => {
                 <tr className="border-b border-[#E5E0D8] text-[#8A8070] uppercase font-bold text-[10px] tracking-wider">
                   <th className="py-3 px-3">Name</th>
                   <th className="py-3 px-3">Type</th>
+                  <th className="py-3 px-3">Location</th>
                   <th className="py-3 px-3">Capacity</th>
                   <th className="py-3 px-3">Status</th>
                   <th className="py-3 px-3 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E5E0D8]/40">
-                {filteredResources.map((res) => (
-                  <tr key={res.id} className="hover:bg-[#F0EDE8]/40">
+                {listLoading && (
+                  <tr>
+                    <td colSpan={6} className="py-8 px-3 text-center text-[#8A8070]">
+                      Loading resources…
+                    </td>
+                  </tr>
+                )}
+                {listError && (
+                  <tr>
+                    <td colSpan={6} className="py-8 px-3 text-center text-[#C62828] font-semibold" role="alert">
+                      Could not load resources: {listError}
+                    </td>
+                  </tr>
+                )}
+                {page && listedResources.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="py-8 px-3 text-center text-[#8A8070]">
+                      No resources match this filter.
+                    </td>
+                  </tr>
+                )}
+                {listedResources.map((res) => (
+                  <tr
+                    key={res.id}
+                    onClick={() => navigate(`/resources/${res.id}`)}
+                    className="hover:bg-[#F0EDE8]/40 cursor-pointer"
+                  >
                     <td className="py-3 px-3 font-bold text-[#242424]">{res.name}</td>
                     <td className="py-3 px-3 text-[#8A8070]">{res.type}</td>
+                    <td className="py-3 px-3 text-[#8A8070]">
+                      {res.zone ? `${res.zone.building} · ${res.zone.floor} · ${res.zone.name}` : '—'}
+                    </td>
                     <td className="py-3 px-3">{res.capacity} seats</td>
                     <td className="py-3 px-3">
                       <span
@@ -344,11 +416,14 @@ export const FindResource: React.FC = () => {
                     </td>
                     <td className="py-3 px-3 text-right">
                       <button
-                        onClick={() => {
+                        disabled={res.status !== 'AVAILABLE'}
+                        title={res.status !== 'AVAILABLE' ? 'Suspended resources cannot be booked' : undefined}
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setSelectedResourceId(res.id);
                           setIsBookingOpen(true);
                         }}
-                        className="px-3 py-1.5 rounded-[6px] bg-[#FAFAF8] text-[#242424] border border-[#D5D0C8] hover:bg-black hover:text-white hover:border-black text-xs font-semibold transition-all cursor-pointer shadow-xs"
+                        className="px-3 py-1.5 rounded-[6px] bg-[#FAFAF8] text-[#242424] border border-[#D5D0C8] hover:bg-black hover:text-white hover:border-black text-xs font-semibold transition-all cursor-pointer shadow-xs disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#FAFAF8] disabled:hover:text-[#242424] disabled:hover:border-[#D5D0C8]"
                       >
                         Reserve
                       </button>
@@ -358,13 +433,43 @@ export const FindResource: React.FC = () => {
               </tbody>
             </table>
           </div>
+
+          {page && page.page.totalElements > 0 && (
+            <div className="flex items-center justify-between pt-2 text-xs text-[#8A8070]">
+              <span>
+                Showing {page.page.number * page.page.size + 1}–
+                {page.page.number * page.page.size + listedResources.length} of {page.page.totalElements}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={page.page.first}
+                  onClick={() => setPageNumber((n) => n - 1)}
+                  className="px-3 py-1.5 rounded-[6px] border border-[#D5D0C8] font-semibold text-[#242424] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  ← Previous
+                </button>
+                <span>
+                  Page {page.page.number + 1} / {page.page.totalPages}
+                </span>
+                <button
+                  type="button"
+                  disabled={page.page.last}
+                  onClick={() => setPageNumber((n) => n + 1)}
+                  className="px-3 py-1.5 rounded-[6px] border border-[#D5D0C8] font-semibold text-[#242424] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Next →
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
       <BookingModal
         isOpen={isBookingOpen}
         onClose={() => setIsBookingOpen(false)}
-        resources={mockResources}
+        resources={viewMode === 'list' ? listedResources : mockResources}
         initialResourceId={selectedResourceId}
         onBookingSuccess={() => {
           setIsBookingOpen(false);
