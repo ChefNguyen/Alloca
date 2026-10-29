@@ -130,7 +130,7 @@ Phiên bản 1.1 — 2026-10-11. Tài liệu nguồn cho SRS, API, sơ đồ và
 ### BR-AUTH-01 — Đã chốt
 
 - Access token 30 phút, refresh token7 ngày. Mỗi request protected kiểm tra active; deactivate có hiệu lực dù access token cũ còn hạn.
-- Đổi mật khẩu vô hiệu mọi refresh token trước đó. Logout Phase1 chỉ xóa token phía client, không hứa vô hiệu token bị sao chép.
+- Đổi mật khẩu vô hiệu mọi refresh token trước đó. Logout Phase1 xóa access token trong memory và gọi server để hết hạn HttpOnly refresh cookie, không hứa vô hiệu token bị sao chép.
 
 ### BR-AUTH-02 — Mặc định triển khai
 

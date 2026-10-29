@@ -41,7 +41,10 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import jakarta.servlet.http.Cookie;
+import com.alloca.auth.security.RefreshCookie;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -59,10 +62,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * default the mock filter blocks every request. The doAnswer below restores
  * the normal pass-through behaviour expected by the filter chain.
  */
-@WebMvcTest(AuthController.class)
+@WebMvcTest(controllers = AuthController.class, properties = {
+        "CORS_ALLOWED_ORIGINS=http://localhost:5173", "AUTH_COOKIE_SECURE=true", "AUTH_COOKIE_SAME_SITE=Lax"})
 @Import({SecurityConfig.class, GlobalExceptionHandler.class,
         JwtAuthenticationEntryPoint.class, RestAccessDeniedHandler.class})
 public class AuthControllerTest {
+    private static MockHttpServletRequestBuilder post(String path) {
+        return MockMvcRequestBuilders.post(path)
+                .header("Origin", "http://localhost:5173").header("X-Requested-With", "Alloca");
+    }
+
 
     @Autowired
     private MockMvc mockMvc;
@@ -124,7 +133,16 @@ public class AuthControllerTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.accessToken").value("mock-access-token"))
                     .andExpect(jsonPath("$.tokenType").value("Bearer"))
-                    .andExpect(jsonPath("$.user.username").value("testuser"));
+                    .andExpect(jsonPath("$.user.username").value("testuser"))
+                    .andExpect(jsonPath("$.refreshToken").doesNotExist())
+                    .andExpect(header().string("Cache-Control", "no-store"))
+                    .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.allOf(
+                            org.hamcrest.Matchers.containsString("alloca_refresh=mock-refresh-token"),
+                            org.hamcrest.Matchers.containsString("HttpOnly"),
+                            org.hamcrest.Matchers.containsString("Secure"),
+                            org.hamcrest.Matchers.containsString("SameSite=Lax"),
+                            org.hamcrest.Matchers.containsString("Path=/api/v1/auth"),
+                            org.hamcrest.Matchers.containsString("Max-Age=604800"))));
         }
 
         @Test
@@ -170,7 +188,7 @@ public class AuthControllerTest {
             when(authService.refreshToken(any(RefreshTokenRequest.class)))
                     .thenReturn(new AccessTokenResponse("new-mock-access-token", "Bearer", 1800L));
 
-            mockMvc.perform(post("/api/v1/auth/refresh")
+            mockMvc.perform(post("/api/v1/auth/refresh").cookie(new Cookie(RefreshCookie.NAME, "test-refresh-token"))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(
                                     new RefreshTokenRequest("valid-refresh-token-at-least-20-chars"))))
@@ -178,6 +196,7 @@ public class AuthControllerTest {
                     .andExpect(jsonPath("$.accessToken").value("new-mock-access-token"))
                     .andExpect(jsonPath("$.tokenType").value("Bearer"))
                     .andExpect(jsonPath("$.expiresIn").value(1800));
+            org.mockito.Mockito.verify(authService).refreshToken(new RefreshTokenRequest("test-refresh-token"));
         }
 
         @Test
@@ -186,7 +205,7 @@ public class AuthControllerTest {
             when(authService.refreshToken(any(RefreshTokenRequest.class)))
                     .thenThrow(new InvalidTokenException("Invalid token signature"));
 
-            mockMvc.perform(post("/api/v1/auth/refresh")
+            mockMvc.perform(post("/api/v1/auth/refresh").cookie(new Cookie(RefreshCookie.NAME, "test-refresh-token"))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(
                                     new RefreshTokenRequest("invalid-refresh-token-at-least-20-chars"))))
@@ -203,7 +222,7 @@ public class AuthControllerTest {
             when(authService.refreshToken(any(RefreshTokenRequest.class)))
                     .thenThrow(new ExpiredTokenException("Refresh token has expired"));
 
-            mockMvc.perform(post("/api/v1/auth/refresh")
+            mockMvc.perform(post("/api/v1/auth/refresh").cookie(new Cookie(RefreshCookie.NAME, "test-refresh-token"))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(
                                     new RefreshTokenRequest("expired-refresh-token-at-least-20-chars"))))
@@ -215,17 +234,15 @@ public class AuthControllerTest {
         }
 
         @Test
-        @DisplayName("400 VALIDATION_ERROR — token shorter than 20 chars")
-        void refreshToken_ValidationFailure_Returns400() throws Exception {
+        void refreshWithoutCookieRejectsEvenWithTokenInJsonBody() throws Exception {
             mockMvc.perform(post("/api/v1/auth/refresh")
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(new RefreshTokenRequest("short"))))
-                    .andExpect(status().isBadRequest())
-                    .andExpect(header().string("Content-Type", "application/problem+json"))
-                    .andExpect(jsonPath("$.code").value("VALIDATION_ERROR"))
-                    .andExpect(jsonPath("$.status").value(400))
-                    .andExpect(jsonPath("$.fieldErrors").isArray());
+                            .content(objectMapper.writeValueAsString(new RefreshTokenRequest("body-token"))))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value("AUTH_TOKEN_INVALID"));
+            org.mockito.Mockito.verifyNoInteractions(authService);
         }
+
     }
 
     // ===================================================================
@@ -296,11 +313,62 @@ public class AuthControllerTest {
             when(authService.refreshToken(any(RefreshTokenRequest.class)))
                     .thenReturn(new AccessTokenResponse("at", "Bearer", 1800L));
 
-            mockMvc.perform(post("/api/v1/auth/refresh")
+            mockMvc.perform(post("/api/v1/auth/refresh").cookie(new Cookie(RefreshCookie.NAME, "test-refresh-token"))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(
                                     new RefreshTokenRequest("valid-token-at-least-20-chars-here"))))
                     .andExpect(status().isOk());
         }
+    }
+    @Test
+    void logoutExpiresCookieWithoutAccessToken() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/logout"))
+                .andExpect(status().isNoContent())
+                .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.allOf(
+                        org.hamcrest.Matchers.containsString("Max-Age=0"),
+                        org.hamcrest.Matchers.containsString("Path=/api/v1/auth"),
+                        org.hamcrest.Matchers.containsString("HttpOnly"),
+                        org.hamcrest.Matchers.containsString("Secure"),
+                        org.hamcrest.Matchers.containsString("SameSite=Lax"))));
+    }
+
+    @Test
+    void rejectsCookieAuthWithoutCsrfHeaderOrTrustedOrigin() throws Exception {
+        for (String path : java.util.List.of("/api/v1/auth/login", "/api/v1/auth/refresh", "/api/v1/auth/logout")) {
+            mockMvc.perform(MockMvcRequestBuilders.post(path).header("Origin", "http://localhost:5173"))
+                    .andExpect(status().isForbidden());
+            mockMvc.perform(MockMvcRequestBuilders.post(path).header("X-Requested-With", "Alloca"))
+                    .andExpect(status().isForbidden());
+            mockMvc.perform(MockMvcRequestBuilders.post(path).header("Origin", "https://evil.example")
+                            .header("X-Requested-With", "Alloca"))
+                    .andExpect(status().isForbidden());
+            mockMvc.perform(MockMvcRequestBuilders.post(path).header("Origin", "null")
+                            .header("X-Requested-With", "Alloca"))
+                    .andExpect(status().isForbidden());
+        }
+        org.mockito.Mockito.verifyNoInteractions(authService);
+    }
+
+    @Test
+    void invalidRefreshClearsCookie() throws Exception {
+        when(authService.refreshToken(any())).thenThrow(new InvalidTokenException("Invalid token"));
+        mockMvc.perform(post("/api/v1/auth/refresh").cookie(new Cookie(RefreshCookie.NAME, "invalid")))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.containsString("Max-Age=0")));
+    }
+
+    @Test
+    void corsAllowsOnlyConfiguredOriginsAndCsrfHeader() throws Exception {
+        mockMvc.perform(MockMvcRequestBuilders.options("/api/v1/auth/refresh")
+                        .header("Origin", "http://localhost:5173")
+                        .header("Access-Control-Request-Method", "POST")
+                        .header("Access-Control-Request-Headers", "X-Requested-With"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:5173"))
+                .andExpect(header().string("Access-Control-Allow-Credentials", "true"));
+        mockMvc.perform(MockMvcRequestBuilders.options("/api/v1/auth/refresh")
+                        .header("Origin", "https://evil.example")
+                        .header("Access-Control-Request-Method", "POST"))
+                .andExpect(status().isForbidden());
     }
 }

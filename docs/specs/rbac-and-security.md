@@ -43,7 +43,8 @@ Tài liệu này là **Single Source of Truth** cho việc thiết kế JWT Filt
   - Trong bảng `users` lưu một số nguyên `credentials_version` (khởi tạo = 1). Claim này được nhúng vào Refresh Token khi đăng nhập.
   - Khi người dùng đổi mật khẩu hoặc bị vô hiệu hóa, `credentials_version` được tăng lên 1 trong cùng transaction lưu mật khẩu mới.
   - Endpoint `POST /api/v1/auth/refresh` yêu cầu: chữ ký token hợp lệ, chưa hết hạn, đúng loại refresh, tài khoản `is_active = true`, và `token.credentials_version == user.credentials_version`. Bất kỳ sự sai lệch nào đều khiến request refresh bị từ chối `401 Unauthorized`.
-- **Đăng xuất (Logout) Phase 1**: Phía client xóa token trong storage. Logout server-side toàn bộ các phiên active và xoay vòng refresh token (rotation) là tính năng ngoài phạm vi Phase 1.
+- **Token browser**: Access token chỉ ở memory; refresh token ở cookie `HttpOnly; Secure; SameSite=Lax` (cấu hình theo deployment). Xem [browser-auth.md](browser-auth.md).
+- **Đăng xuất (Logout) Phase 1**: Client xóa access token khỏi memory và gọi `POST /auth/logout` để server xóa HttpOnly cookie. Không thu hồi JWT đã bị sao chép; thu hồi tất cả phiên và refresh rotation vẫn ngoài phạm vi Phase 1.
 
 ---
 
@@ -163,8 +164,9 @@ sequenceDiagram
 
 ## 4. API Endpoints liên quan
 
-- `POST /api/v1/auth/login` — Đăng nhập bằng username/password, nhận access & refresh token.
-- `POST /api/v1/auth/refresh` — Đổi refresh token lấy access token mới.
+- `POST /api/v1/auth/login` — Nhận access token trong JSON, refresh token trong cookie HttpOnly.
+- `POST /api/v1/auth/refresh` — Đọc refresh cookie để cấp access token mới, không nhận token từ JSON.
+- `POST /api/v1/auth/logout` — Xóa refresh cookie. Ba endpoint này yêu cầu Origin được cho phép và `X-Requested-With: Alloca`.
 - `POST /api/v1/auth/change-password` — Đổi mật khẩu (tự động tăng `credentials_version`).
 - `GET /api/v1/auth/me` — Lấy thông tin user hiện tại kèm vai trò và phòng ban.
 - `GET /api/v1/users` — Quản trị danh sách người dùng (Admin only).

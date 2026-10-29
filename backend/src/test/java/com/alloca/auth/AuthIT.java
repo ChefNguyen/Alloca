@@ -27,16 +27,26 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import jakarta.servlet.http.Cookie;
+import com.alloca.auth.security.RefreshCookie;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
+        "CORS_ALLOWED_ORIGINS=http://localhost:5173", "AUTH_COOKIE_SECURE=true", "AUTH_COOKIE_SAME_SITE=Lax",
+        "JWT_SECRET=integration-test-only-secret-with-at-least-32-bytes"})
 @AutoConfigureMockMvc
 @Testcontainers
 class AuthIT {
+    private static MockHttpServletRequestBuilder post(String path) {
+        return MockMvcRequestBuilders.post(path)
+                .header("Origin", "http://localhost:5173").header("X-Requested-With", "Alloca");
+    }
+
 
     @Container
     @ServiceConnection
@@ -93,7 +103,8 @@ class AuthIT {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").isNotEmpty())
-                .andExpect(jsonPath("$.refreshToken").isNotEmpty())
+                .andExpect(jsonPath("$.refreshToken").doesNotExist())
+                .andExpect(header().exists("Set-Cookie"))
                 .andExpect(jsonPath("$.tokenType").value("Bearer"))
                 .andExpect(jsonPath("$.expiresIn").isNumber())
                 .andExpect(jsonPath("$.user.username").value("realuser"))
@@ -166,20 +177,19 @@ class AuthIT {
         userRepository.save(user);
 
         // 1. Đăng nhập để nhận refresh token thật từ server
-        String loginResponseJson = mockMvc.perform(post("/api/v1/auth/login")
+        var loginResponse = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new LoginRequest("refreshtestuser", rawPassword))))
                 .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
+                .andReturn().getResponse();
 
-        String refreshToken = com.jayway.jsonpath.JsonPath.read(loginResponseJson, "$.refreshToken");
+        String refreshToken = loginResponse.getCookie(RefreshCookie.NAME).getValue();
         assertThat(refreshToken).isNotBlank();
 
         // 2. Gửi request refresh với token thật
         RefreshTokenRequest refreshRequest = new RefreshTokenRequest(refreshToken);
         mockMvc.perform(post("/api/v1/auth/refresh")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(refreshRequest)))
+                        .cookie(new Cookie(RefreshCookie.NAME, refreshRequest.refreshToken())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").isNotEmpty())
                 .andExpect(jsonPath("$.tokenType").value("Bearer"))
@@ -192,8 +202,7 @@ class AuthIT {
         RefreshTokenRequest invalidRequest = new RefreshTokenRequest("this-is-an-invalid-tampered-token-1234567890");
 
         mockMvc.perform(post("/api/v1/auth/refresh")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(invalidRequest)))
+                        .cookie(new Cookie(RefreshCookie.NAME, invalidRequest.refreshToken())))
                 .andExpect(status().isUnauthorized())
                 .andExpect(header().string("Content-Type", "application/problem+json"))
                 .andExpect(jsonPath("$.code").value("AUTH_TOKEN_INVALID"))
@@ -216,13 +225,13 @@ class AuthIT {
         userRepository.save(user);
 
         // 1. Đăng nhập để lấy refresh token mang version 1
-        String loginResponseJson = mockMvc.perform(post("/api/v1/auth/login")
+        var loginResponse = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new LoginRequest("versiontestuser", rawPassword))))
                 .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
+                .andReturn().getResponse();
 
-        String oldRefreshToken = com.jayway.jsonpath.JsonPath.read(loginResponseJson, "$.refreshToken");
+        String oldRefreshToken = loginResponse.getCookie(RefreshCookie.NAME).getValue();
 
         // 2. Mô phỏng đổi mật khẩu: tăng credentials_version trong DB lên 2
         user.incrementCredentialsVersion();
@@ -231,8 +240,7 @@ class AuthIT {
         // 3. Dùng lại refresh token cũ mang version 1 -> Server phải từ chối ngay lập tức
         RefreshTokenRequest refreshRequest = new RefreshTokenRequest(oldRefreshToken);
         mockMvc.perform(post("/api/v1/auth/refresh")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(refreshRequest)))
+                        .cookie(new Cookie(RefreshCookie.NAME, refreshRequest.refreshToken())))
                 .andExpect(status().isUnauthorized())
                 .andExpect(header().string("Content-Type", "application/problem+json"))
                 .andExpect(jsonPath("$.code").value("AUTH_TOKEN_INVALID"))
@@ -328,13 +336,13 @@ class AuthIT {
         userRepository.save(user);
 
         // Login to get REFRESH token
-        String loginResponseJson = mockMvc.perform(post("/api/v1/auth/login")
+        var loginResponse = mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new LoginRequest("confuseuser", rawPassword))))
                 .andExpect(status().isOk())
-                .andReturn().getResponse().getContentAsString();
+                .andReturn().getResponse();
 
-        String refreshToken = com.jayway.jsonpath.JsonPath.read(loginResponseJson, "$.refreshToken");
+        String refreshToken = loginResponse.getCookie(RefreshCookie.NAME).getValue();
 
         // Attempt to use the REFRESH token on the /me endpoint (token_type = "refresh_token" != "access_token")
         mockMvc.perform(get("/api/v1/auth/me")

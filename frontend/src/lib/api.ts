@@ -1,4 +1,4 @@
-import { clearSession, loadSession, saveSession, SESSION_EXPIRED_EVENT } from '@/lib/authStorage';
+import { clearSession, loadSession, saveSession, getSessionVersion } from './authStorage.ts';
 
 export interface ApiFieldError {
   field: string;
@@ -29,17 +29,20 @@ export class ApiError extends Error {
   }
 }
 
-const PUBLIC_PATHS = ['/api/v1/auth/login', '/api/v1/auth/refresh'];
+const PUBLIC_PATHS = ['/api/v1/auth/login', '/api/v1/auth/refresh', '/api/v1/auth/logout'];
 
 const send = async (path: string, init: RequestInit, accessToken: string | null): Promise<Response> => {
   try {
     return await fetch(path, {
       ...init,
+      credentials: 'include',
+      cache: 'no-store',
       headers: {
         Accept: 'application/json',
         ...(init.body ? { 'Content-Type': 'application/json' } : {}),
         ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         ...init.headers,
+        ...(PUBLIC_PATHS.includes(path) ? { 'X-Requested-With': 'Alloca' } : {}),
       },
     });
   } catch {
@@ -48,42 +51,49 @@ const send = async (path: string, init: RequestInit, accessToken: string | null)
 };
 
 // One refresh at a time, even when several requests get a 401 together.
-let refreshing: Promise<string | null> | null = null;
+let refreshing: { version: number; promise: Promise<string | null> } | null = null;
 
-const refreshAccessToken = (): Promise<string | null> => {
-  refreshing ??= (async () => {
-    const session = loadSession();
-    if (!session) return null;
-    try {
+export const refreshAccessToken = (): Promise<string | null> => {
+  const version = getSessionVersion();
+  if (refreshing?.version === version) return refreshing.promise;
+  const promise = (async () => {
       const response = await send(
         '/api/v1/auth/refresh',
-        { method: 'POST', body: JSON.stringify({ refreshToken: session.refreshToken }) },
+        { method: 'POST' },
         null,
       );
-      if (!response.ok) return null;
+      if (getSessionVersion() !== version) return null;
+      if (response.status === 401) {
+        clearSession();
+        return null;
+      }
+      if (!response.ok) throw new ApiError(response.status, await response.json().catch(() => ({})));
       const { accessToken } = (await response.json()) as { accessToken: string };
-      saveSession({ ...session, accessToken });
+      if (getSessionVersion() !== version) return null;
+      saveSession({ accessToken, user: loadSession()?.user ?? null });
       return accessToken;
-    } catch {
-      return null;
-    }
   })().finally(() => {
-    refreshing = null;
+    if (refreshing?.promise === promise) refreshing = null;
   });
-  return refreshing;
+  refreshing = { version, promise };
+  return promise;
 };
 
 export const apiRequest = async <T>(path: string, init: RequestInit = {}): Promise<T> => {
-  let response = await send(path, init, loadSession()?.accessToken ?? null);
+  const version = getSessionVersion();
+  const token = PUBLIC_PATHS.includes(path) ? null : loadSession()?.accessToken ?? null;
+  let response = await send(path, init, token);
 
-  if (response.status === 401 && !PUBLIC_PATHS.includes(path)) {
-    const refreshed = await refreshAccessToken();
+  if (response.status === 401 && token && getSessionVersion() === version) {
+    const current = loadSession()?.accessToken;
+    const refreshed = current && current !== token ? current : await refreshAccessToken();
     if (refreshed) {
       response = await send(path, init, refreshed);
-    } else {
-      clearSession();
-      window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
     }
+  }
+
+  if (response.status === 401 && !PUBLIC_PATHS.includes(path) && getSessionVersion() === version) {
+    clearSession();
   }
 
   if (response.status === 204) {
