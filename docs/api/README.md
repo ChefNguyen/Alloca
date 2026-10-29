@@ -87,9 +87,13 @@ so historical rates can be recalculated after a schedule change.
 
 Disabled accounts are rejected immediately by login, refresh, and authenticated
 requests, even if a previously issued access token has not expired. Changing a
-password invalidates refresh tokens issued before that change. Logout is client-only:
-clients discard local tokens; Phase 1 exposes no logout endpoint and makes no
-server-side refresh-token-revocation claim.
+password invalidates refresh tokens issued before that change. Access tokens live
+only in frontend memory. Login sets the refresh token in the host-only
+`alloca_refresh` HttpOnly cookie, never in JSON. Refresh reads that cookie without
+a JSON body. On reload, the frontend calls refresh then `/auth/me` before routing.
+`POST /auth/logout` expires the cookie; the frontend clears memory too. Copied JWTs
+are not revoked by logout. Login, refresh and logout require a trusted `Origin`
+and `X-Requested-With: Alloca`. See [cookie configuration](../specs/browser-auth.md).
 
 ## Traceability and validation
 
@@ -100,7 +104,7 @@ server-side refresh-token-revocation claim.
 | Schedule/deletion protections | resource schedules and deletion endpoints | Invalidating schedule and ongoing/future booking rejections |
 | Maps and availability | floor-map upload/availability and resource availability endpoints | PNG/JPEG/content/type and 10 MiB limit; stage-one daily map status then stage-two interval check |
 | Utilization and alerts | Analytics, Reports, Alerts endpoints | Clipping, status filtering, zero denominator, seven-day and threshold edge cases |
-| Authentication lifecycle | login, refresh, change password, and protected endpoints | Immediate disabled-account rejection; prior-refresh invalidation; client-only logout |
+| Authentication lifecycle | login, cookie refresh/logout, change password, and protected endpoints | Immediate disabled-account rejection; prior-refresh invalidation; CSRF rejection; cookie clearing |
 
 Validate the contract with Redocly CLI:
 

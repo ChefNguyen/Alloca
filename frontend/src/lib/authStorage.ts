@@ -1,38 +1,33 @@
-import { User } from '@/types/api';
+import type { User } from '../types/api.ts';
 
 export interface StoredSession {
   accessToken: string;
-  refreshToken: string;
-  user: User;
+  user: User | null;
 }
 
-const KEY = 'alloca.session';
-
-// localStorage can throw (private mode, blocked site data), so every access is guarded.
-export const loadSession = (): StoredSession | null => {
-  try {
-    const raw = localStorage.getItem(KEY);
-    return raw ? (JSON.parse(raw) as StoredSession) : null;
-  } catch {
-    return null;
-  }
+// In-memory store observed by React. Never persist credentials in Web Storage.
+let session: StoredSession | null = null;
+let version = 0;
+const listeners = new Set<() => void>();
+export const loadSession = (): StoredSession | null => session;
+export const getSessionVersion = (): number => version;
+export const subscribeSession = (listener: () => void): (() => void) => {
+  listeners.add(listener);
+  return () => { listeners.delete(listener); };
 };
 
-export const saveSession = (session: StoredSession): void => {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(session));
-  } catch {
-    // Session stays in memory only; the user will have to sign in again after a reload.
-  }
+export const saveSession = (next: StoredSession): void => {
+  session = next;
+  listeners.forEach((listener) => listener());
+};
+
+export const removeLegacySession = (): void => {
+  try { localStorage.removeItem('alloca.session'); } catch { /* Storage may be disabled. */ }
 };
 
 export const clearSession = (): void => {
-  try {
-    localStorage.removeItem(KEY);
-  } catch {
-    // Nothing to clear.
-  }
+  version += 1; // Prevent an older in-flight refresh from restoring a logged-out session.
+  session = null;
+  removeLegacySession();
+  listeners.forEach((listener) => listener());
 };
-
-/** Fired when the session can no longer be refreshed, so the UI can return to the login page. */
-export const SESSION_EXPIRED_EVENT = 'alloca:session-expired';

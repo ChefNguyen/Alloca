@@ -44,6 +44,11 @@ Run backend verification with:
 
 ## Development accounts
 
+Browser auth uses an in-memory access token and an HttpOnly refresh cookie.
+See [cookie setup and verification](docs/specs/browser-auth.md). For local HTTP,
+set `AUTH_COOKIE_SECURE=false` in the backend environment; production uses HTTPS
+with `AUTH_COOKIE_SECURE=true`.
+
 Demo accounts for local development and manual testing (one per role). The backend only
 authenticates against the database, so seed them once after the first start:
 

@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { mockUsers } from '@/mock/data';
 import { ResourceFormModal, ResourceFormValues } from '@/components/admin/ResourceFormModal';
 import { ResourceRowActions } from '@/components/admin/ResourceRowActions';
 import { ResourceScheduleModal } from '@/components/admin/ResourceScheduleModal';
 import { SimpleField, SimpleFormModal } from '@/components/admin/SimpleFormModal';
+import { UserFormModal, UserFormValues } from '@/components/admin/UserFormModal';
 import { ApiError } from '@/lib/api';
 import {
   createDepartment,
@@ -20,6 +20,13 @@ import {
   updateResourceStatus,
   updateZone,
 } from '@/services/resourceApi';
+import {
+  createUser,
+  deactivateUser,
+  listUsers,
+  updateUser,
+  updateUserAccess,
+} from '@/services/userApi';
 import { Department, Resource, User, Zone } from '@/types/api';
 
 // Mirror ZoneWriteRequest / DepartmentWriteRequest limits in docs/api/openapi.yaml
@@ -55,7 +62,17 @@ export const Administration: React.FC = () => {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [users, setUsers] = useState<User[]>(mockUsers);
+
+  // Real users state (ALC-26, ALC-27)
+  const [users, setUsers] = useState<User[]>([]);
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [usersLoading, setUsersLoading] = useState(true);
+  const [usersError, setUsersError] = useState<string | null>(null);
+  const [editingUser, setEditingUser] = useState<User | null | undefined>(undefined);
+  const [userSubmitting, setUserSubmitting] = useState(false);
+  const [userFormError, setUserFormError] = useState<string | null>(null);
+  const [userFormFieldErrors, setUserFormFieldErrors] = useState<Record<string, string>>({});
+
   const [reminderLeadTime, setReminderLeadTime] = useState<number>(15);
   const [feedback, setFeedback] = useState<{ kind: 'success' | 'error'; message: string } | null>(null);
 
@@ -73,9 +90,23 @@ export const Administration: React.FC = () => {
     setTotalResources(page.page.totalElements);
   }, []);
 
+  const loadUsers = useCallback(async () => {
+    try {
+      setUsersLoading(true);
+      const page = await listUsers({ size: 100, sort: 'createdAt,desc' });
+      setUsers(page.items);
+      setTotalUsers(page.page.totalElements);
+      setUsersError(null);
+    } catch (error) {
+      setUsersError(describeError(error));
+    } finally {
+      setUsersLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
-    Promise.all([loadResources(), listZones(), listDepartments()])
+    Promise.all([loadResources(), listZones(), listDepartments(), loadUsers()])
       .then(([, loadedZones, loadedDepartments]) => {
         if (cancelled) return;
         setZones(loadedZones);
@@ -91,7 +122,7 @@ export const Administration: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [loadResources]);
+  }, [loadResources, loadUsers]);
 
   const closeForm = () => {
     setEditing(undefined);
@@ -245,11 +276,76 @@ export const Administration: React.FC = () => {
     }
   };
 
-  const toggleUserActive = (userId: string) => {
-    setUsers((prev) =>
-      prev.map((u) => (u.id === userId ? { ...u, isActive: !u.isActive } : u))
-    );
-    showNotice('User status updated. Credentials version incremented.');
+  const handleToggleUserActive = async (targetUser: User) => {
+    try {
+      if (targetUser.isActive) {
+        if (
+          !window.confirm(
+            `Deactivate user "${targetUser.fullName}" (@${targetUser.username})? They will immediately lose access and credentials will be revoked.`,
+          )
+        ) {
+          return;
+        }
+        await deactivateUser(targetUser.id);
+        showNotice(`User "${targetUser.fullName}" has been deactivated.`);
+      } else {
+        await updateUser(targetUser.id, { isActive: true });
+        showNotice(`User "${targetUser.fullName}" has been activated.`);
+      }
+      await loadUsers();
+    } catch (error) {
+      showNotice(describeError(error), 'error');
+    }
+  };
+
+  const handleSubmitUser = async (values: UserFormValues) => {
+    setUserSubmitting(true);
+    setUserFormError(null);
+    setUserFormFieldErrors({});
+    try {
+      if (!editingUser) {
+        await createUser({
+          username: values.username,
+          email: values.email,
+          password: values.password!,
+          fullName: values.fullName,
+          role: values.role,
+          departmentId: values.departmentId,
+        });
+        showNotice(`User "${values.fullName}" created successfully.`);
+      } else {
+        await updateUser(editingUser.id, {
+          email: values.email,
+          fullName: values.fullName,
+          newPassword: values.password ? values.password : undefined,
+        });
+        if (
+          values.role !== editingUser.role ||
+          values.departmentId !== editingUser.department?.id
+        ) {
+          await updateUserAccess(editingUser.id, {
+            role: values.role,
+            departmentId: values.departmentId,
+          });
+        }
+        showNotice(`User "${values.fullName}" updated successfully.`);
+      }
+      setEditingUser(undefined);
+      await loadUsers();
+    } catch (error) {
+      if (error instanceof ApiError) {
+        setUserFormError(error.message);
+        const fieldMap: Record<string, string> = {};
+        error.fieldErrors.forEach((fe) => {
+          fieldMap[fe.field] = fe.message;
+        });
+        setUserFormFieldErrors(fieldMap);
+      } else {
+        setUserFormError('Failed to save user. Please try again.');
+      }
+    } finally {
+      setUserSubmitting(false);
+    }
   };
 
   const showNotice = (message: string, kind: 'success' | 'error' = 'success') => {
@@ -559,7 +655,23 @@ export const Administration: React.FC = () => {
                 User Management & RBAC Roles
               </h2>
             </div>
+            <button
+              onClick={() => {
+                setUserFormError(null);
+                setUserFormFieldErrors({});
+                setEditingUser(null);
+              }}
+              className="px-4 py-2.5 rounded-[6px] bg-[#D97757] text-white text-xs font-bold shadow-card hover:opacity-95 transition-all cursor-pointer"
+            >
+              + Add User
+            </button>
           </div>
+
+          {usersError && (
+            <div role="alert" className="p-3 rounded-[6px] bg-[#FFEBEE] text-[#C62828] text-xs font-semibold">
+              Could not load users: {usersError}
+            </div>
+          )}
 
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
@@ -574,6 +686,20 @@ export const Administration: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E5E0D8]/40">
+                {usersLoading && (
+                  <tr>
+                    <td colSpan={6} className="py-8 px-4 text-center text-[#8A8070]">
+                      Loading users from database...
+                    </td>
+                  </tr>
+                )}
+                {!usersLoading && users.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="py-8 px-4 text-center text-[#8A8070]">
+                      No users found. Use “+ Add User” to create the first user.
+                    </td>
+                  </tr>
+                )}
                 {users.map((u) => (
                   <tr key={u.id} className="hover:bg-[#F0EDE8]/30 transition-colors">
                     <td className="py-3.5 px-4 font-bold text-[#242424]">{u.fullName}</td>
@@ -598,13 +724,23 @@ export const Administration: React.FC = () => {
                         {u.isActive ? 'Active' : 'Deactivated'}
                       </span>
                     </td>
-                    <td className="py-3.5 px-4 text-right">
+                    <td className="py-3.5 px-4 text-right space-x-2">
                       <button
-                        onClick={() => toggleUserActive(u.id)}
+                        onClick={() => {
+                          setUserFormError(null);
+                          setUserFormFieldErrors({});
+                          setEditingUser(u);
+                        }}
+                        className="px-2.5 py-1.5 rounded-[6px] text-xs font-semibold bg-[#F0EDE8] text-[#242424] hover:bg-[#E5E0D8] transition-colors cursor-pointer"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleToggleUserActive(u)}
                         className={`px-3 py-1.5 rounded-[6px] text-xs font-semibold transition-colors cursor-pointer ${
                           u.isActive
                             ? 'bg-[#242424] text-white hover:bg-black'
-                            : 'bg-[#242424] text-white hover:bg-black'
+                            : 'bg-[#4CAF7D] text-white hover:bg-[#3D8B64]'
                         }`}
                       >
                         {u.isActive ? 'Deactivate' : 'Activate'}
@@ -615,7 +751,25 @@ export const Administration: React.FC = () => {
               </tbody>
             </table>
           </div>
+          {totalUsers > users.length && (
+            <p className="text-[11px] text-[#8A8070]">
+              Showing the first {users.length} of {totalUsers} users.
+            </p>
+          )}
         </div>
+      )}
+
+      {editingUser !== undefined && (
+        <UserFormModal
+          isOpen
+          user={editingUser}
+          departments={departments}
+          submitting={userSubmitting}
+          serverError={userFormError}
+          serverErrors={userFormFieldErrors}
+          onClose={() => setEditingUser(undefined)}
+          onSubmit={handleSubmitUser}
+        />
       )}
 
       {/* Tab 4: Departments */}

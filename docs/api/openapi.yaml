@@ -40,6 +40,9 @@ security:
 
 paths:
   /auth/login:
+    parameters:
+      - $ref: '#/components/parameters/AuthOrigin'
+      - $ref: '#/components/parameters/AuthRequestHeader'
     post:
       tags: [Authentication]
       operationId: login
@@ -54,26 +57,32 @@ paths:
       responses:
         '200':
           description: Đăng nhập thành công
+          headers:
+            Set-Cookie:
+              description: Host-only alloca_refresh cookie; HttpOnly, Secure, SameSite=Lax by default, Path=/api/v1/auth. Refresh token is never returned in JSON.
+              schema: { type: string }
+            Cache-Control:
+              schema: { type: string, const: no-store }
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/LoginResponse'
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '500': { $ref: '#/components/responses/InternalServerError' }
 
   /auth/refresh:
+    parameters:
+      - $ref: '#/components/parameters/AuthOrigin'
+      - $ref: '#/components/parameters/AuthRequestHeader'
     post:
       tags: [Authentication]
       operationId: refreshAccessToken
       summary: Cấp access token mới
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RefreshTokenRequest'
+      description: Reads alloca_refresh from the HttpOnly cookie. No JSON body is required; body tokens are not accepted as credentials. Invalid or missing cookies return 401 and expire the cookie.
+      security:
+        - refreshCookie: []
       responses:
         '200':
           description: Access token mới
@@ -83,7 +92,27 @@ paths:
                 $ref: '#/components/schemas/AccessTokenResponse'
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      operationId: logout
+      summary: Clear this browser's refresh cookie
+      description: Requires trusted Origin and X-Requested-With. Does not require an access token or revoke copied JWTs. Clear access token memory on the client too.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/AuthOrigin'
+        - $ref: '#/components/parameters/AuthRequestHeader'
+      responses:
+        '204':
+          description: Cookie expired, including when already absent
+          headers:
+            Set-Cookie:
+              description: Same cookie name/path/flags with Max-Age=0.
+              schema: { type: string }
+        '403': { $ref: '#/components/responses/Forbidden' }
 
   /auth/me:
     get:
@@ -1052,12 +1081,28 @@ paths:
 
 components:
   securitySchemes:
+    refreshCookie:
+      type: apiKey
+      in: cookie
+      name: alloca_refresh
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
 
   parameters:
+    AuthOrigin:
+      name: Origin
+      in: header
+      required: true
+      description: Exact frontend origin from CORS_ALLOWED_ORIGINS. The browser sets this automatically; CLI clients must supply it.
+      schema: { type: string, format: uri }
+    AuthRequestHeader:
+      name: X-Requested-With
+      in: header
+      required: true
+      description: Required together with the trusted Origin to protect cookie-auth endpoints against CSRF.
+      schema: { type: string, const: Alloca }
     Page:
       name: page
       in: query
@@ -1178,12 +1223,6 @@ components:
       properties:
         username: { type: string, minLength: 3, maxLength: 50, example: nguyen.van.an }
         password: { type: string, minLength: 8, maxLength: 100, format: password }
-    RefreshTokenRequest:
-      type: object
-      additionalProperties: false
-      required: [refreshToken]
-      properties:
-        refreshToken: { type: string, minLength: 20 }
     AccessTokenResponse:
       type: object
       required: [accessToken, tokenType, expiresIn]
@@ -1195,9 +1234,8 @@ components:
       allOf:
         - { $ref: '#/components/schemas/AccessTokenResponse' }
         - type: object
-          required: [refreshToken, refreshExpiresIn, user]
+          required: [refreshExpiresIn, user]
           properties:
-            refreshToken: { type: string }
             refreshExpiresIn: { type: integer, const: 604800, description: Số giây }
             user: { $ref: '#/components/schemas/User' }
     ProfileUpdateRequest:
