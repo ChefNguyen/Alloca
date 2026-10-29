@@ -39,13 +39,29 @@ export type ResourceUpdateInput = Partial<Omit<ResourceCreateInput, 'status'>>;
 
 const json = (body: unknown) => ({ body: JSON.stringify(body) });
 
-export const listResources = (params: { page?: number; size?: number; sort?: string } = {}) => {
+// Query parameters of GET /resources; DELETED resources are never returned.
+export interface ResourceListParams {
+  page?: number;
+  size?: number;
+  sort?: string;
+  q?: string;
+  type?: ResourceType;
+  zoneId?: string;
+  departmentId?: string;
+  status?: Exclude<ResourceStatus, 'DELETED'>;
+  minCapacity?: number;
+}
+
+export const listResources = (params: ResourceListParams = {}) => {
   const query = new URLSearchParams();
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined) query.set(key, String(value));
   });
   return apiRequest<Page<Resource>>(`/api/v1/resources?${query}`);
 };
+
+/** Includes the weekly schedule; a DELETED resource is reported as 404. */
+export const getResource = (id: string) => apiRequest<ResourceDetail>(`/api/v1/resources/${id}`);
 
 export const createResource = (input: ResourceCreateInput) =>
   apiRequest<Resource>('/api/v1/resources', { method: 'POST', ...json(input) });

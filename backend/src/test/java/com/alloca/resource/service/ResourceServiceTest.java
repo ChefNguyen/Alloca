@@ -12,22 +12,30 @@ import com.alloca.auth.repository.DepartmentRepository;
 import com.alloca.common.api.ApiException;
 import com.alloca.common.api.ErrorCode;
 import com.alloca.resource.domain.Resource;
+import com.alloca.resource.domain.ResourceSchedule;
 import com.alloca.resource.domain.ResourceStatus;
 import com.alloca.resource.domain.ResourceType;
 import com.alloca.resource.domain.Zone;
 import com.alloca.resource.dto.MapPosition;
 import com.alloca.resource.dto.ResourceCreateRequest;
+import com.alloca.resource.dto.ResourceDetailResponse;
 import com.alloca.resource.dto.ResourceResponse;
 import com.alloca.resource.dto.ResourceStatusUpdateRequest;
 import com.alloca.resource.dto.ResourceUpdateRequest;
 import com.alloca.resource.repository.ResourceRepository;
 import com.alloca.resource.repository.ResourceScheduleRepository;
 import com.alloca.resource.repository.ZoneRepository;
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.CriteriaQuery;
+import jakarta.persistence.criteria.Path;
+import jakarta.persistence.criteria.Root;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.time.DayOfWeek;
 import java.time.Instant;
+import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +43,11 @@ import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 
 class ResourceServiceTest {
@@ -304,6 +317,50 @@ class ResourceServiceTest {
         when(resourceRepository.findWithRelationsById(resource.getId())).thenReturn(Optional.of(resource));
 
         assertThat(service.get(resource.getId()).name()).isEqualTo("Pod A");
+    }
+
+    @Test
+    void getIncludesEveryWeeklyWindow() {
+        Resource resource = existing(ResourceStatus.AVAILABLE);
+        when(resourceRepository.findWithRelationsById(resource.getId())).thenReturn(Optional.of(resource));
+        when(scheduleRepository.findByResourceIdOrderByDayOfWeekAscStartTimeAsc(resource.getId())).thenReturn(List.of(
+                new ResourceSchedule(UUID.randomUUID(), resource.getId(), DayOfWeek.MONDAY,
+                        LocalTime.of(8, 0), LocalTime.of(12, 0)),
+                new ResourceSchedule(UUID.randomUUID(), resource.getId(), DayOfWeek.MONDAY,
+                        LocalTime.of(13, 0), LocalTime.of(17, 0))));
+
+        ResourceDetailResponse detail = service.get(resource.getId());
+
+        assertThat(detail.schedules()).hasSize(2);
+    }
+
+    @Test
+    void getTreatsDeletedResourceAsNotFound() {
+        Resource resource = existing(ResourceStatus.SUSPENDED);
+        resource.markDeleted(NOW);
+        when(resourceRepository.findWithRelationsById(resource.getId())).thenReturn(Optional.of(resource));
+
+        assertThatThrownBy(() -> service.get(resource.getId()))
+                .isInstanceOfSatisfying(ApiException.class,
+                        ex -> assertThat(ex.getCode()).isEqualTo(ErrorCode.RESOURCE_NOT_FOUND));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void listAlwaysExcludesDeletedResources() {
+        when(resourceRepository.findAll(any(Specification.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 20), 0));
+
+        service.list(null, null, null, null, null, null, PageRequest.of(0, 20));
+
+        ArgumentCaptor<Specification<Resource>> spec = ArgumentCaptor.forClass(Specification.class);
+        verify(resourceRepository).findAll(spec.capture(), any(Pageable.class));
+        Root<Resource> root = mock(Root.class);
+        CriteriaBuilder cb = mock(CriteriaBuilder.class);
+        Path<Object> statusPath = mock(Path.class);
+        when(root.get("status")).thenReturn(statusPath);
+        spec.getValue().toPredicate(root, mock(CriteriaQuery.class), cb);
+        verify(cb).notEqual(statusPath, ResourceStatus.DELETED);
     }
 
     private Resource existing(ResourceStatus status) {
