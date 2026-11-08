@@ -23,10 +23,16 @@
 - Before creating a pull request, run `./backend/mvnw -f backend/pom.xml test` and make sure it passes. Do not open a PR with failing or skipped-to-pass tests, and report the result in the PR description.
 - Bug fixes need a regression test that fails without the fix.
 
+## 5. Backend Package Convention
+- Organize backend code by feature, with `controller`, `dto`, `service`, `domain`, and `repository` as sibling packages under `com.alloca.<module>`.
+- Put request/response types in `<module>.dto` and domain entities/value objects in `<module>.domain`. Put feature-specific exceptions in `<module>.exception`.
+- Shared response types belong in `common.dto`; shared exceptions, error codes, and the global exception handler belong in `common.exception`.
+- Do not introduce an `api` package or an `api/dto` level. Add packages when they contain an implementation, and mirror production packages under `backend/src/test/java`.
+
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **Alloca** (1838 symbols, 4410 relationships, 133 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **Alloca** (2179 symbols, 5527 relationships, 179 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 

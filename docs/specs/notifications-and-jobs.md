@@ -14,7 +14,7 @@ Tài liệu này là **Single Source of Truth** cho việc thiết kế Notifica
 | :--- | :--- | :---: | :---: |
 | **Xác nhận đặt chỗ** (Booking Created) | Chủ booking (`user_id`) | In-app | Email qua HTTPS API |
 | **Nhắc lịch sắp tới** (Booking Reminder) | Chủ booking (`user_id`) | In-app | Email qua HTTPS API |
-| **Hủy đặt chỗ** (Booking Cancelled) | Chủ booking (`user_id`) và Người thao tác hủy (`created_by`) nếu khác nhau (khử trùng recipient) | In-app | Email qua HTTPS API |
+| **Hủy đặt chỗ** (Booking Cancelled) | Chủ booking (`user_id`) và người tạo ban đầu (`created_by`) nếu khác nhau (khử trùng recipient); người hủy (`cancelled_by`) không tự có thêm thông báo | In-app | Email qua HTTPS API |
 | **Cảnh báo sử dụng Resource phòng ban** | Toàn bộ **Manager active** của phòng ban sở hữu resource | In-app | Email qua HTTPS API |
 | **Cảnh báo sử dụng Resource dùng chung** | Toàn bộ **Admin active** trên hệ thống | In-app | Email qua HTTPS API |
 

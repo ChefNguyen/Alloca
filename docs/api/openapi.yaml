@@ -959,7 +959,7 @@ paths:
       tags: [Bookings]
       operationId: listBookings
       summary: Lấy lịch sử booking theo phạm vi role
-      description: Employee chỉ xem bản thân, Manager xem phòng ban, Admin xem toàn hệ thống.
+      description: Employee chỉ xem bản thân, Manager xem owner thuộc department hiện tại và booking của mình, Admin xem toàn hệ thống. Manager không có department chỉ xem booking của mình. Scope được áp trước phân trang và totalElements; mọi filter chỉ thu hẹp scope. from/to chọn booking giao với khoảng nửa mở [from,to), from phải nhỏ hơn to. Mặc định sort=startTime,desc; hỗ trợ startTime, endTime, createdAt, status và id, với id làm tiêu chí phụ ổn định. Lịch sử của resource đã soft-delete vẫn được giữ và trả theo scope owner.
       x-roles: [EMPLOYEE, MANAGER, ADMIN]
       parameters:
         - { $ref: '#/components/parameters/Page' }
@@ -997,7 +997,7 @@ paths:
       tags: [Bookings]
       operationId: createBooking
       summary: Tạo booking
-      description: userId bỏ trống nghĩa là đặt cho bản thân. Manager scope dựa trên department của booking owner; shared resource (departmentId=null) bookable cho mọi tài khoản active. startTime/endTime phải theo biên 30 phút tại Asia/Ho_Chi_Minh, kéo dài 30 phút đến 8 giờ, cùng một ngày địa phương, không ở quá khứ và không quá 30 ngày địa phương tính từ hôm nay.
+      description: userId bỏ trống nghĩa là đặt cho bản thân. Manager chỉ đặt hộ cho tài khoản active trong department hiện tại; Admin đặt hộ toàn hệ thống. createdBy luôn lấy từ principal. Department của resource không giới hạn người đặt. startTime/endTime phải theo biên 30 phút tại Asia/Ho_Chi_Minh, kéo dài 30 phút đến 8 giờ, cùng một ngày địa phương, startTime lớn hơn serverNow và không vượt quá serverNow + 30 ngày.
       x-roles: [EMPLOYEE, MANAGER, ADMIN]
       requestBody:
         required: true
@@ -1044,7 +1044,7 @@ paths:
       tags: [Bookings]
       operationId: cancelBooking
       summary: Hủy booking trước giờ bắt đầu
-      description: Chỉ owner, Manager có department hiện tại trùng department của owner, hoặc Admin được hủy; tất cả chỉ khi booking CONFIRMED và trước start. Creator khác owner chỉ nhận thông báo bổ sung, không có quyền hủy riêng; không gửi trùng cho owner.
+      description: Chỉ owner, Manager có department hiện tại trùng department của owner, hoặc Admin được hủy; tất cả chỉ khi booking CONFIRMED và trước start. Creator khác owner chỉ nhận thông báo bổ sung, không có quyền hủy riêng; không gửi trùng cho owner. Hủy lại booking CANCELLED hoặc COMPLETED trả 409 BOOKING_CANNOT_BE_CANCELLED và không ghi thêm history hoặc notification.
       x-roles: [EMPLOYEE, MANAGER, ADMIN]
       requestBody:
         required: false
@@ -1066,6 +1066,7 @@ paths:
       tags: [Bookings]
       operationId: getBookingStatusHistory
       summary: Lấy lịch sử chuyển trạng thái booking
+      description: Kiểm tra cùng owner scope như chi tiết booking trước khi đọc history; không cấp quyền riêng cho creator. Kết quả theo changedAt tăng dần, cùng thời điểm thì theo id; changedBy=null đại diện System.
       x-roles: [EMPLOYEE, MANAGER, ADMIN]
       responses:
         '200':
