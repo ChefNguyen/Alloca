@@ -4,16 +4,14 @@ import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { BookingModal } from '@/components/booking/BookingModal';
 import { useSidebar } from '@/context/SidebarContext';
-import { mockResources, mockBookings } from '@/mock/data';
-import { Booking } from '@/types/api';
 
 export const AppLayout: React.FC = () => {
   const [isBookingOpen, setIsBookingOpen] = useState<boolean>(false);
-  const [bookings, setBookings] = useState<Booking[]>(mockBookings);
+  const [bookingRevision, setBookingRevision] = useState(0);
   const { sidebarWidth } = useSidebar();
 
-  const handleBookingSuccess = (newBooking: Booking) => {
-    setBookings((prev) => [newBooking, ...prev]);
+  const handleBookingSuccess = () => {
+    setBookingRevision(previous => previous + 1);
   };
 
   return (
@@ -31,7 +29,7 @@ export const AppLayout: React.FC = () => {
 
         {/* Working Canvas */}
         <main className="flex-1 w-full pt-16 bg-[#F0EDE8]">
-          <Outlet context={{ bookings, onOpenBookingModal: () => setIsBookingOpen(true) }} />
+          <Outlet context={{ bookingRevision, onOpenBookingModal: () => setIsBookingOpen(true) }} />
         </main>
       </div>
 
@@ -39,7 +37,6 @@ export const AppLayout: React.FC = () => {
       <BookingModal
         isOpen={isBookingOpen}
         onClose={() => setIsBookingOpen(false)}
-        resources={mockResources}
         onBookingSuccess={handleBookingSuccess}
       />
     </div>

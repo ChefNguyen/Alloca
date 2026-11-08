@@ -8,13 +8,13 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.alloca.auth.api.dto.DepartmentResponse;
-import com.alloca.auth.api.dto.DepartmentWriteRequest;
+import com.alloca.auth.dto.DepartmentResponse;
+import com.alloca.auth.dto.DepartmentWriteRequest;
 import com.alloca.auth.domain.Department;
 import com.alloca.auth.repository.DepartmentRepository;
 import com.alloca.auth.repository.UserRepository;
-import com.alloca.common.api.ApiException;
-import com.alloca.common.api.ErrorCode;
+import com.alloca.common.exception.ApiException;
+import com.alloca.common.exception.ErrorCode;
 import com.alloca.resource.repository.ResourceRepository;
 import java.util.List;
 import java.util.Optional;

@@ -15,14 +15,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.alloca.auth.api.dto.DepartmentResponse;
-import com.alloca.auth.api.dto.DepartmentWriteRequest;
+import com.alloca.auth.dto.DepartmentResponse;
+import com.alloca.auth.dto.DepartmentWriteRequest;
 import com.alloca.auth.service.DepartmentService;
 import com.alloca.auth.security.JwtAuthenticationEntryPoint;
 import com.alloca.auth.security.JwtAuthenticationFilter;
 import com.alloca.auth.security.RestAccessDeniedHandler;
-import com.alloca.common.api.ApiException;
-import com.alloca.common.api.ErrorCode;
+import com.alloca.common.exception.ApiException;
+import com.alloca.common.exception.ErrorCode;
 import com.alloca.config.SecurityConfig;
 import java.time.Instant;
 import java.util.List;

@@ -1,14 +1,14 @@
 package com.alloca.auth.controller;
 
-import com.alloca.auth.api.dto.UserAccessUpdateRequest;
-import com.alloca.auth.api.dto.UserCreateRequest;
-import com.alloca.auth.api.dto.UserResponse;
-import com.alloca.auth.api.dto.UserUpdateRequest;
+import com.alloca.auth.dto.UserAccessUpdateRequest;
+import com.alloca.auth.dto.UserCreateRequest;
+import com.alloca.auth.dto.UserResponse;
+import com.alloca.auth.dto.UserUpdateRequest;
 import com.alloca.auth.domain.Role;
 import com.alloca.auth.security.UserPrincipal;
 import com.alloca.auth.service.UserService;
-import com.alloca.common.api.ApiException;
-import com.alloca.common.api.PageResponse;
+import com.alloca.common.exception.ApiException;
+import com.alloca.common.dto.PageResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;

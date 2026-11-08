@@ -1,10 +1,10 @@
 package com.alloca.auth.service;
 
-import com.alloca.auth.api.dto.DepartmentSummaryResponse;
-import com.alloca.auth.api.dto.UserAccessUpdateRequest;
-import com.alloca.auth.api.dto.UserCreateRequest;
-import com.alloca.auth.api.dto.UserResponse;
-import com.alloca.auth.api.dto.UserUpdateRequest;
+import com.alloca.auth.dto.DepartmentSummaryResponse;
+import com.alloca.auth.dto.UserAccessUpdateRequest;
+import com.alloca.auth.dto.UserCreateRequest;
+import com.alloca.auth.dto.UserResponse;
+import com.alloca.auth.dto.UserUpdateRequest;
 import com.alloca.auth.domain.ActivityLog;
 import com.alloca.auth.domain.Department;
 import com.alloca.auth.domain.Role;
@@ -13,9 +13,9 @@ import com.alloca.auth.repository.ActivityLogRepository;
 import com.alloca.auth.repository.DepartmentRepository;
 import com.alloca.auth.repository.UserRepository;
 import com.alloca.auth.security.UserPrincipal;
-import com.alloca.common.api.ApiException;
-import com.alloca.common.api.ErrorCode;
-import com.alloca.common.api.PageResponse;
+import com.alloca.common.exception.ApiException;
+import com.alloca.common.exception.ErrorCode;
+import com.alloca.common.dto.PageResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;

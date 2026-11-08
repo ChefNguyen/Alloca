@@ -1,2 +1,2 @@
-/** Shared API, audit, and persistence infrastructure. */
+/** Shared HTTP DTOs and exception handling. */
 package com.alloca.common;

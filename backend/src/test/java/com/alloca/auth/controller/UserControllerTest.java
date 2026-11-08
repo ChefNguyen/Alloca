@@ -1,16 +1,16 @@
 package com.alloca.auth.controller;
 
-import com.alloca.auth.api.dto.DepartmentSummaryResponse;
-import com.alloca.auth.api.dto.UserAccessUpdateRequest;
-import com.alloca.auth.api.dto.UserCreateRequest;
-import com.alloca.auth.api.dto.UserResponse;
-import com.alloca.auth.api.dto.UserUpdateRequest;
+import com.alloca.auth.dto.DepartmentSummaryResponse;
+import com.alloca.auth.dto.UserAccessUpdateRequest;
+import com.alloca.auth.dto.UserCreateRequest;
+import com.alloca.auth.dto.UserResponse;
+import com.alloca.auth.dto.UserUpdateRequest;
 import com.alloca.auth.domain.Role;
 import com.alloca.auth.security.JwtAuthenticationEntryPoint;
 import com.alloca.auth.security.JwtAuthenticationFilter;
 import com.alloca.auth.security.RestAccessDeniedHandler;
 import com.alloca.auth.service.UserService;
-import com.alloca.common.api.PageResponse;
+import com.alloca.common.dto.PageResponse;
 import com.alloca.config.SecurityConfig;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;

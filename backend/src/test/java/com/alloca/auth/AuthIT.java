@@ -1,7 +1,7 @@
 package com.alloca.auth;
 
-import com.alloca.auth.api.dto.LoginRequest;
-import com.alloca.auth.api.dto.RefreshTokenRequest;
+import com.alloca.auth.dto.LoginRequest;
+import com.alloca.auth.dto.RefreshTokenRequest;
 import com.alloca.auth.domain.Department;
 import com.alloca.auth.domain.Role;
 import com.alloca.auth.domain.User;
@@ -32,6 +32,7 @@ import com.alloca.auth.security.RefreshCookie;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -283,7 +284,7 @@ class AuthIT {
     void getMe_WithoutToken_Returns401() throws Exception {
         mockMvc.perform(get("/api/v1/auth/me"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(header().string("Content-Type", "application/problem+json"))
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.code").value("AUTH_TOKEN_INVALID"))
                 .andExpect(jsonPath("$.status").value(401));
     }
@@ -294,7 +295,7 @@ class AuthIT {
         mockMvc.perform(get("/api/v1/auth/me")
                         .header("Authorization", "Bearer eyJhbGciOiJIUzI1NiJ9.tampered.signature"))
                 .andExpect(status().isUnauthorized())
-                .andExpect(header().string("Content-Type", "application/problem+json"))
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.code").value("AUTH_TOKEN_INVALID"));
     }
 
@@ -323,7 +324,7 @@ class AuthIT {
         mockMvc.perform(get("/api/v1/auth/me")
                         .header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isUnauthorized())
-                .andExpect(header().string("Content-Type", "application/problem+json"))
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.code").value("AUTH_TOKEN_INVALID"));
     }
 
@@ -348,7 +349,7 @@ class AuthIT {
         mockMvc.perform(get("/api/v1/auth/me")
                         .header("Authorization", "Bearer " + refreshToken))
                 .andExpect(status().isUnauthorized())
-                .andExpect(header().string("Content-Type", "application/problem+json"))
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.code").value("AUTH_TOKEN_INVALID"));
     }
 }

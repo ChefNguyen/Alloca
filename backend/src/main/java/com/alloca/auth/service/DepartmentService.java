@@ -1,12 +1,12 @@
 package com.alloca.auth.service;
 
-import com.alloca.auth.api.dto.DepartmentResponse;
-import com.alloca.auth.api.dto.DepartmentWriteRequest;
+import com.alloca.auth.dto.DepartmentResponse;
+import com.alloca.auth.dto.DepartmentWriteRequest;
 import com.alloca.auth.domain.Department;
 import com.alloca.auth.repository.DepartmentRepository;
 import com.alloca.auth.repository.UserRepository;
-import com.alloca.common.api.ApiException;
-import com.alloca.common.api.ErrorCode;
+import com.alloca.common.exception.ApiException;
+import com.alloca.common.exception.ErrorCode;
 import com.alloca.resource.repository.ResourceRepository;
 import com.github.f4b6a3.uuid.UuidCreator;
 import java.util.List;

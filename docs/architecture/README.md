@@ -128,29 +128,53 @@ flowchart TB
 
 ## 3. Thành phần và Cấu trúc Mã nguồn (Package Structure)
 
-Dự án áp dụng kiến trúc **Hexagonal / Clean Architecture** với cấu trúc module đề xuất:
+Dự án hiện tổ chức backend **theo chức năng (package-by-feature)**. Trong mỗi
+module, các package `controller`, `dto`, `service`, `domain` và `repository` nằm
+ngang hàng. Đây là quy ước áp dụng cho code mới và khi refactor module hiện có.
 
 ```
 com.alloca
-├── domain                    <-- Core Domain Model (Java thuần, KHÔNG phụ thuộc Spring/JPA)
-│   ├── booking               <-- Booking Entity, BookingStatus, TimeInterval VO
-│   ├── resource              <-- Resource Entity, ResourceStatus, OperatingSchedule VO
-│   ├── user                  <-- User Entity, Role, CredentialsVersion
-│   ├── notification          <-- Notification Entity, NotificationType
-│   └── alert                 <-- Alert Entity, AlertStatus, Episode
-├── application               <-- Use Cases & Application Ports
-│   ├── booking               <-- CreateBookingUseCase, CancelBookingUseCase
-│   ├── resource              <-- ManageResourceUseCase, CheckAvailabilityUseCase
-│   ├── auth                  <-- LoginUseCase, RefreshTokenUseCase
-│   └── ports                 <-- In/Out Interfaces (Repositories, NotificationSender)
-├── infrastructure            <-- Adapters & Framework Details
-│   ├── persistence           <-- Spring Data JPA Entities & Repositories (PostgreSQL)
-│   ├── security              <-- JwtTokenProvider, SecurityFilterChain, CurrentUserContext
-│   ├── storage               <-- Cloudflare R2 S3 Client Adapter
-│   ├── scheduler             <-- Spring Task Scheduler (Catch-up Jobs)
-│   └── email                 <-- HTTPS Email API Client
-└── web                       <-- HTTP Presentation Layer
-    ├── controllers           <-- REST Controllers (@RestController)
-    ├── dto                   <-- Request/Response DTOs & Validation Annotations
-    └── exceptions            <-- GlobalExceptionHandler & ErrorResponse (RFC 7807)
+├── auth
+│   ├── controller            <-- HTTP endpoints cho auth, user và department
+│   ├── dto                   <-- LoginRequest, UserResponse, DepartmentResponse...
+│   ├── service               <-- Điều phối nghiệp vụ, transaction và phân quyền
+│   ├── domain                <-- User, Department, Role, ActivityLog
+│   ├── repository            <-- Spring Data JPA repositories
+│   ├── security              <-- JWT, principal, filter và cookie
+│   └── exception             <-- Exception riêng của auth
+├── resource
+│   ├── controller
+│   ├── dto                   <-- ResourceCreateRequest, ResourceResponse...
+│   ├── service
+│   ├── domain                <-- Resource, ResourceSchedule, OperatingSchedule...
+│   └── repository
+├── booking                   <-- Dùng cùng quy ước khi triển khai ALC-34 trở đi
+├── notification              <-- Tạo các package khi có phần triển khai tương ứng
+├── analytics
+├── floormap
+├── common
+│   ├── dto                   <-- ErrorResponse, PageResponse dùng chung
+│   └── exception             <-- ApiException, ErrorCode, GlobalExceptionHandler
+└── config                    <-- Cấu hình Spring, security, clock và timezone
 ```
+
+- **DTO:** đặt tại `com.alloca.<module>.dto`, không thêm package `api` hay tầng
+  `api/dto`. Chứa
+  request/response theo OpenAPI và validation của dữ liệu đầu vào.
+- **Domain:** chứa entity, enum và value object cùng hành vi nghiệp vụ. Entity
+  hiện dùng JPA; value object như khoảng thời gian và lịch hoạt động có thể là
+  Java thuần. `record` là cú pháp Java, không tự quyết định một kiểu là DTO.
+- **Service:** điều phối quy tắc nghiệp vụ, phân quyền, repository và transaction.
+- **Controller:** nhận HTTP request, gọi service và trả HTTP response.
+- **Common DTO:** `common.dto` chứa response dùng chung như `ErrorResponse` và
+  `PageResponse`; DTO riêng của từng chức năng vẫn thuộc module đó.
+- **Exception:** lỗi riêng của chức năng nằm trong `<module>.exception`;
+  `common.exception` chứa `ApiException`, `ErrorCode` và `GlobalExceptionHandler`
+  dùng chung.
+- **Test:** phản chiếu package production trong `backend/src/test/java`.
+
+Chỉ tạo package khi có code triển khai. Các module booking, notification,
+analytics và floormap dùng cùng quy ước này khi bổ sung DTO, domain hay repository.
+
+Với Booking Engine, request như `BookingCreateRequest` thuộc `booking.dto`;
+value object kiểm tra giao nhau của hai khoảng thời gian thuộc `booking.domain`.

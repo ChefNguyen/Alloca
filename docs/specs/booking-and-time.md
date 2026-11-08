@@ -180,7 +180,7 @@ flowchart TD
 - `POST /api/v1/bookings` — Tạo booking mới.
 - `GET /api/v1/bookings` — Lấy danh sách booking theo phân quyền (Employee: của mình; Manager: của department; Admin: all).
 - `GET /api/v1/bookings/{id}` — Lấy chi tiết booking.
-- `DELETE /api/v1/bookings/{id}` — Hủy booking (`CONFIRMED` và `now < start_time`).
+- `POST /api/v1/bookings/{id}/cancel` — Hủy booking (`CONFIRMED` và `now < start_time`), body tùy chọn `{ "reason": "..." }` (tối đa 500 ký tự), thành công trả `204`. Hủy lại hoặc đã đến giờ bắt đầu trả `409 BOOKING_CANNOT_BE_CANCELLED`.
 - `GET /api/v1/resources/{resourceId}/availability` — Kiểm tra các khoảng thời gian trống theo ngày.
 
 ---
@@ -194,6 +194,6 @@ flowchart TD
 - [ ] **TC-BOOK-05**: Tạo booking vượt quá 30 ngày tới trả về `400 Bad Request`.
 - [ ] **TC-BOOK-06**: Hai booking tiếp giáp nhau (09:00 - 10:00 và 10:00 - 11:00) đều thành công `201 Created`.
 - [ ] **TC-BOOK-07**: Hai booking giao nhau 1 phút (09:00 - 10:00 và 09:30 - 10:30) booking sau bị `409 Conflict`.
-- [ ] **TC-BOOK-08 (Concurrency)**: Chạy 10 luồng song song đặt cùng 1 slot trên 1 resource, chỉ duy nhất 1 luồng trả về `201`, 9 luồng còn lại trả về `409 Conflict`.
-- [ ] **TC-BOOK-09**: Hủy booking sau khi đã bắt đầu (`now >= start`) trả về `400/409 Error`.
+- [ ] **TC-BOOK-08 (Concurrency)**: Chạy 20 luồng song song đặt cùng 1 slot trên 1 resource, chỉ duy nhất 1 luồng trả về `201`, 19 luồng còn lại trả về `409 Conflict`.
+- [ ] **TC-BOOK-09**: Hủy booking khi đã bắt đầu (`now >= start`) trả về `409 BOOKING_CANNOT_BE_CANCELLED` cho tất cả role.
 - [ ] **TC-BOOK-10**: Scheduler tự động đổi booking sang `COMPLETED` khi `end_time <= now`.

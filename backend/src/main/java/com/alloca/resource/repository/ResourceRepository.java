@@ -29,18 +29,18 @@ public interface ResourceRepository extends JpaRepository<Resource, UUID>, JpaSp
     @Query("select r from Resource r where r.id = :id")
     Optional<Resource> findWithRelationsById(@Param("id") UUID id);
 
-    /** Resources that block deleting a zone; pass {@code DELETED} to skip soft-deleted ones. */
+    /** Đếm số lượng tài nguyên ngăn chặn việc xóa zone; truyền trạng thái DELETED để bỏ qua các tài nguyên đã xóa mềm. */
     long countByZone_IdAndStatusNot(UUID zoneId, ResourceStatus status);
 
-    /** Counts every row, soft-deleted ones included: they keep their FK to the department. */
+    /** Đếm toàn bộ tài nguyên thuộc department, bao gồm cả tài nguyên đã xóa mềm (vì vẫn giữ khóa ngoại tới department). */
     long countByDepartment_Id(UUID departmentId);
 
-    /** {@code SELECT ... FOR UPDATE} on the resource row (BR-RESOURCE-02 transactional lock). */
+    /** Khóa bi quan hàng tài nguyên bằng câu lệnh SELECT ... FOR UPDATE (BR-RESOURCE-02: Transactional lock tránh race condition). */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select r from Resource r where r.id = :id")
     Optional<Resource> findByIdForUpdate(@Param("id") UUID id);
 
-    /** CONFIRMED bookings that are ongoing or upcoming ({@code end_time > now}). */
+    /** Tìm danh sách ID các booking CONFIRMED đang diễn ra hoặc sắp tới trong tương lai (end_time > now). */
     @Query(value = """
             select b.id from bookings b
             where b.resource_id = :resourceId
@@ -50,7 +50,7 @@ public interface ResourceRepository extends JpaRepository<Resource, UUID>, JpaSp
             """, nativeQuery = true)
     List<UUID> findActiveConfirmedBookingIds(@Param("resourceId") UUID resourceId, @Param("now") Instant now);
 
-    /** An ongoing or upcoming CONFIRMED booking, with its interval in UTC. */
+    /** DTO đại diện cho một booking CONFIRMED đang hoạt động với khoảng thời gian tính theo UTC. */
     record ActiveBooking(UUID id, Instant startTime, Instant endTime) {
     }
 

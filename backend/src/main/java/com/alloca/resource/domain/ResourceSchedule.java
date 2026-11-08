@@ -10,6 +10,8 @@ import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /** Weekly operating window of a resource; {@code dayOfWeek} is ISO (1 = Monday, 7 = Sunday). */
 @Entity
@@ -28,9 +30,11 @@ public class ResourceSchedule {
     private short dayOfWeek;
 
     @Column(name = "start_time", nullable = false)
+    @JdbcTypeCode(SqlTypes.LOCAL_TIME)
     private LocalTime startTime;
 
     @Column(name = "end_time", nullable = false)
+    @JdbcTypeCode(SqlTypes.LOCAL_TIME)
     private LocalTime endTime;
 
     public ResourceSchedule(UUID id, UUID resourceId, DayOfWeek dayOfWeek, LocalTime startTime, LocalTime endTime) {

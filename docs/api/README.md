@@ -44,8 +44,10 @@ to Managers in that resource's department.
 1. Booking starts and ends must fall on 30-minute local boundaries. The duration
    must be from 30 minutes through 8 hours inclusive, and the complete interval
    must stay within one `Asia/Ho_Chi_Minh` calendar day.
-2. The start must not be in the past and must be no more than 30 local calendar
-   days ahead. The interval must be within the resource's operating schedule.
+2. The start must be strictly after server time and no later than
+   `serverNow + 30 days` (an instant boundary, not the end of that local date).
+   The interval must be within the resource's operating schedule; adjacent
+   operating windows are merged for this check.
 3. Creation locks the resource row with `SELECT ... FOR UPDATE`, checks overlap
    inside the same transaction, and returns `409 BOOKING_TIME_CONFLICT` when
    another `CONFIRMED` booking overlaps.
@@ -53,6 +55,9 @@ to Managers in that resource's department.
    start. Only the active owner, a Manager in the owner's department, or an Admin
    may cancel within their scope. A distinct creator receives the cancellation
    notification but gains no cancellation authority merely by creating the booking.
+   Cancellation locks resource then booking, checks the current actor/owner scope,
+   and reads server time after acquiring locks. Retrying a cancelled booking returns
+   `409 BOOKING_CANNOT_BE_CANCELLED` without a second history row or notification.
 5. Replacing a resource schedule is rejected if it would make any current or future
    `CONFIRMED` booking invalid. The MVP keeps no historical snapshots of schedules.
 6. Soft deletion requires `SUSPENDED` status and no ongoing or future `CONFIRMED`
@@ -66,6 +71,29 @@ became due and strictly before the booking start. Confirmation/cancellation chan
 and their in-app notifications must be atomic, either in the same transaction or
 through a durable transactional outbox. Every event/recipient pair yields one
 in-app notification.
+
+## Booking reads and frontend integration (ALC-41)
+
+`GET /bookings` applies current owner scope in SQL before pagination and counts:
+Employee sees self; Manager sees self and owners in their current non-null
+department; Admin sees all. A Manager without a department retains self-service.
+`userId`, `departmentId`, `resourceId` and `status` only narrow that scope. The
+optional instant range selects overlapping bookings using `[from,to)`; equal or
+reversed bounds are invalid. Default ordering is `startTime,desc`, with stable
+`id` tie-breaking; supported sort fields are `startTime`, `endTime`, `createdAt`,
+`status` and `id`. Page is zero-based; size is 1–100.
+
+`GET /bookings/{id}` returns flat Booking fields plus `statusHistory`.
+`GET /bookings/{id}/history` returns that timeline separately in chronological
+order. Both enforce the same current owner scope, including when an owner has
+moved departments or the resource has been soft-deleted. A distinct creator gains
+no read authority from creating a booking.
+
+The My Bookings screen defaults to the current user's reservations. Manager and
+Admin can switch to their permitted wider scope. Filtering, sorting, pagination,
+details/history and cancellation all call the backend. New reservations fetch
+real resource/owner pages and availability, and refetch after server conflicts.
+Times are shown in `Asia/Ho_Chi_Minh`; commands preserve the backend's UTC instants.
 
 ## Reporting defaults
 

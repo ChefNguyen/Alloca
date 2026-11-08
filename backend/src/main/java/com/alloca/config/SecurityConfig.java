@@ -71,6 +71,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         // Cookie-auth endpoints are protected against CSRF by CookieAuthCsrfFilter.
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/login", "/api/v1/auth/refresh", "/api/v1/auth/logout").permitAll()
+                        .requestMatchers("/error").permitAll()
                         // All other routes require valid JWT
                         .anyRequest().authenticated())
                 .addFilterBefore(new CookieAuthCsrfFilter(allowedOrigins, restAccessDeniedHandler),

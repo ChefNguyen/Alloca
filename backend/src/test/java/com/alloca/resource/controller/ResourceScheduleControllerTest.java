@@ -15,8 +15,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.alloca.auth.security.JwtAuthenticationEntryPoint;
 import com.alloca.auth.security.JwtAuthenticationFilter;
 import com.alloca.auth.security.RestAccessDeniedHandler;
-import com.alloca.common.api.ApiException;
-import com.alloca.common.api.ErrorCode;
+import com.alloca.common.exception.ApiException;
+import com.alloca.common.exception.ErrorCode;
 import com.alloca.config.SecurityConfig;
 import com.alloca.resource.dto.ResourceDetailResponse;
 import com.alloca.resource.service.ResourceScheduleService;

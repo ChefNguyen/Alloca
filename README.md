@@ -64,6 +64,10 @@ the connection from `backend/.env` (or `backend/env`) and never prints credentia
 | ADMIN    | `admin`     | `Admin@12345`    | -           |
 | MANAGER  | `manager1`  | `Manager@12345`  | Engineering |
 | EMPLOYEE | `employee1` | `Employee@12345` | Engineering |
+| MANAGER  | `manager2`  | `Manager@12345`  | Marketing   |
+| EMPLOYEE | `employee2` | `Employee@12345` | Marketing   |
+| MANAGER  | `manager3`  | `Manager@12345`  | Sales       |
+| EMPLOYEE | `employee3` | `Employee@12345` | Sales       |
 
 The seed also adds one department (Engineering) and two zones (West Wing with a floor map,
 No Map Zone) so resources can be created in the Administration page.

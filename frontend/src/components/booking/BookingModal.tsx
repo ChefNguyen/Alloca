@@ -1,271 +1,159 @@
-import React, { useState } from 'react';
-import { Resource, Booking } from '@/types/api';
+import React, { useEffect, useRef, useState } from 'react';
+import type { Resource, Booking } from '@/types/api';
 import { useAuth } from '@/context/AuthContext';
-import { mockBookings } from '@/mock/data';
+import { ApiError } from '@/lib/api';
+import { availableEnds, businessDate, businessTime, dateAfter } from '@/lib/bookingTime';
+import { createBooking, getAvailability, searchBookingOwners, searchBookingResources } from '@/services/bookingApi';
+import type { Availability, BookingOwner } from '@/services/bookingApi';
 
 interface BookingModalProps {
   isOpen: boolean;
   onClose: () => void;
-  resources: Resource[];
+  resources?: Resource[];
   initialResourceId?: string;
   onBookingSuccess: (newBooking: Booking) => void;
 }
-
-export const BookingModal: React.FC<BookingModalProps> = ({
-  isOpen,
-  onClose,
-  resources,
-  initialResourceId,
-  onBookingSuccess,
-}) => {
+export const BookingModal: React.FC<BookingModalProps> = props => {
   const { user } = useAuth();
+  return props.isOpen ? <BookingForm key={`${user?.id}/${user?.role}/${user?.department?.id}`} {...props} /> : null;
+};
+const inputClass = 'w-full h-11 px-3 rounded-md bg-[#F0EDE8] text-[#242424] text-sm border border-[#E5E0D8] focus:outline-none focus:ring-1 focus:ring-[#D97757] disabled:opacity-50';
+const message = (error: unknown) => error instanceof Error ? error.message : 'Could not reach the server.';
 
-  const [resourceId, setResourceId] = useState<string>(
-    initialResourceId || resources[0]?.id || ''
-  );
-  const [date, setDate] = useState<string>('2026-10-14');
-  const [startTime, setStartTime] = useState<string>('09:00');
-  const [endTime, setEndTime] = useState<string>('10:30');
-  const [purpose, setPurpose] = useState<string>('');
+const BookingForm: React.FC<BookingModalProps> = ({ onClose, resources, initialResourceId, onBookingSuccess }) => {
+  const { user } = useAuth();
+  const canDelegate = user?.role === 'ADMIN' || (user?.role === 'MANAGER' && !!user.department);
+  const [options, setOptions] = useState<Resource[]>(resources ?? []);
+  const [resourceId, setResourceId] = useState(initialResourceId || resources?.find(r => r.status === 'AVAILABLE')?.id || '');
+  const [resourceQuery, setResourceQuery] = useState('');
+  const [resourcePage, setResourcePage] = useState(0);
+  const [moreResources, setMoreResources] = useState(false);
+  const [catalogRevision, setCatalogRevision] = useState(0);
+  const catalogKey = `${resourceQuery}/${resourcePage}/${catalogRevision}`;
+  const [catalogResult, setCatalogResult] = useState<{ key: string; error?: string } | null>(null);
+  const resourcesLoading = !resources && catalogResult?.key !== catalogKey;
+  const catalogError = catalogResult?.key === catalogKey ? catalogResult.error : null;
+  const [date, setDate] = useState(() => businessDate());
+  const [start, setStart] = useState('');
+  const [end, setEnd] = useState('');
+  const [purpose, setPurpose] = useState('');
+  const [ownerId, setOwnerId] = useState('');
+  const [ownerQuery, setOwnerQuery] = useState('');
+  const [ownerPage, setOwnerPage] = useState(0);
+  const [owners, setOwners] = useState<BookingOwner[]>([]);
+  const [moreOwners, setMoreOwners] = useState(false);
+  const ownerKey = `${ownerQuery}/${ownerPage}`;
+  const [ownerResult, setOwnerResult] = useState<{ key: string; error?: string } | null>(null);
+  const ownerError = ownerResult?.key === ownerKey ? ownerResult.error : null;
+  const ownersLoading = canDelegate && ownerResult?.key !== ownerKey;
+  const [refresh, setRefresh] = useState(0);
+  const [availability, setAvailability] = useState<{ key: string; value?: Availability; error?: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<boolean>(false);
+  const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
+  const key = `${resourceId}/${date}/${refresh}`;
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (resources) return;
+    let active = true;
+    const timer = setTimeout(() => {
+      searchBookingResources(resourceQuery, resourcePage).then(result => {
+        if (!active) return;
+        setOptions(previous => resourcePage === 0 ? result.items : [...previous, ...result.items]);
+        setMoreResources(!result.page.last);
+        setCatalogResult({ key: catalogKey });
+      }).catch(e => { if (active) setCatalogResult({ key: catalogKey, error: message(e) }); });
+    }, 200);
+    return () => { active = false; clearTimeout(timer); };
+  }, [resources, resourceQuery, resourcePage, catalogKey]);
+  useEffect(() => {
+    if (!canDelegate) return;
+    let active = true;
+    const timer = setTimeout(() => {
+      searchBookingOwners(ownerQuery, ownerPage).then(result => {
+        if (!active) return;
+        setOwners(previous => ownerPage === 0 ? result.items : [...previous, ...result.items]);
+        setMoreOwners(!result.page.last);
+        setOwnerResult({ key: ownerKey });
+      }).catch(e => { if (active) setOwnerResult({ key: ownerKey, error: message(e) }); });
+    }, 200);
+    return () => { active = false; clearTimeout(timer); };
+  }, [canDelegate, ownerQuery, ownerPage, ownerKey]);
+  useEffect(() => {
+    if (!resourceId || !date) return;
+    let active = true;
+    getAvailability(resourceId, date).then(value => {
+      if (active) setAvailability({ key, value });
+    }).catch(e => { if (active) setAvailability({ key, error: message(e) }); });
+    return () => { active = false; };
+  }, [key, resourceId, date]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-
-    const selectedResource = resources.find((r) => r.id === resourceId);
-    if (!selectedResource) {
-      setError('Please select a valid resource.');
-      return;
-    }
-
-    if (selectedResource.status === 'SUSPENDED') {
-      setError('This resource is currently suspended for maintenance.');
-      return;
-    }
-
-    const [startHour, startMin] = startTime.split(':').map(Number);
-    const [endHour, endMin] = endTime.split(':').map(Number);
-
-    if (startMin % 30 !== 0 || endMin % 30 !== 0) {
-      setError('Start and end times must align to 30-minute boundaries (:00 or :30).');
-      return;
-    }
-
-    const durationMinutes = endHour * 60 + endMin - (startHour * 60 + startMin);
-    if (durationMinutes < 30) {
-      setError('Minimum booking duration is 30 minutes.');
-      return;
-    }
-    if (durationMinutes > 480) {
-      setError('Maximum booking duration is 8 hours (480 minutes).');
-      return;
-    }
-
-    const newStart = new Date(`${date}T${startTime}:00Z`).toISOString();
-    const newEnd = new Date(`${date}T${endTime}:00Z`).toISOString();
-
-    const hasConflict = mockBookings.some((b) => {
-      if (b.resource.id !== resourceId || b.status !== 'CONFIRMED') return false;
-      const existingStart = new Date(b.startTime).getTime();
-      const existingEnd = new Date(b.endTime).getTime();
-      const reqStart = new Date(newStart).getTime();
-      const reqEnd = new Date(newEnd).getTime();
-      return reqStart < existingEnd && reqEnd > existingStart;
-    });
-
-    if (hasConflict) {
-      setError(
-        '409 Conflict: The selected slot overlaps with an existing confirmed reservation on this resource.'
-      );
-      return;
-    }
-
-    const newBooking: Booking = {
-      id: `bk-${Date.now()}`,
-      resource: selectedResource,
-      user: {
-        id: user?.id || 'user-1',
-        username: user?.username || 'user',
-        fullName: user?.fullName || 'Current User',
-        role: user?.role || 'EMPLOYEE',
-      },
-      createdBy: {
-        id: user?.id || 'user-1',
-        username: user?.username || 'user',
-        fullName: user?.fullName || 'Current User',
-        role: user?.role || 'EMPLOYEE',
-      },
-      startTime: newStart,
-      endTime: newEnd,
-      status: 'CONFIRMED',
-      purpose: purpose || 'Workspace Reservation',
-      createdAt: new Date().toISOString(),
-    };
-
-    setSuccess(true);
-    setTimeout(() => {
-      onBookingSuccess(newBooking);
-      setSuccess(false);
-      onClose();
-    }, 900);
+  const current = availability?.key === key ? availability : null;
+  const slots = current?.value?.availableSlots ?? [];
+  const ends = availableEnds(slots, start);
+  const ready = current?.value?.resourceStatus === 'AVAILABLE' && slots.some(slot => slot.startTime === start) && ends.includes(end);
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (submittingRef.current || !ready) return;
+    submittingRef.current = true; setSubmitting(true); setError(null);
+    try {
+      const booking = await createBooking({ resourceId, ...(canDelegate && ownerId ? { userId: ownerId } : {}),
+        startTime: start, endTime: end, ...(purpose.trim() ? { purpose: purpose.trim() } : {}) });
+      onBookingSuccess(booking); onClose();
+    } catch (e) {
+      setError(e instanceof ApiError && e.status === 409
+        ? 'This time was just booked by someone else. Availability has been refreshed; choose another slot.' : message(e));
+      setStart(''); setEnd(''); setRefresh(value => value + 1);
+    } finally { submittingRef.current = false; setSubmitting(false); }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
-      <div className="w-full max-w-lg bg-[#FAFAF8] rounded-[8px] shadow-hero overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-        {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-[#E5E0D8]/60 flex items-center justify-between bg-[#F0EDE8]/60">
-          <div>
-            <span className="text-[10px] uppercase tracking-widest font-semibold text-[#8A8070] block">
-              Reservation Terminal
-            </span>
-            <h2 className="text-base font-bold text-[#242424] font-editorial">
-              Book a Workspace Resource
-            </h2>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-[4px] flex items-center justify-center text-[#8A8070] hover:text-[#242424] hover:bg-[#EAE5DC] transition-colors cursor-pointer"
-          >
-            <span className="material-symbols-outlined text-[18px]">close</span>
-          </button>
-        </div>
-
-        {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {error && (
-            <div className="p-3 rounded-[6px] bg-red-50 border border-red-200 text-red-800 text-xs flex items-start gap-2">
-              <span className="material-symbols-outlined text-[18px] shrink-0 text-red-600">error</span>
-              <span className="leading-relaxed">{error}</span>
-            </div>
-          )}
-
-          {success && (
-            <div className="p-3 rounded-[6px] bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center gap-2">
-              <span className="material-symbols-outlined text-[18px] text-[#22C55E]">check_circle</span>
-              <span>Reservation confirmed! Syncing timeline...</span>
-            </div>
-          )}
-
-          {/* Resource Selector */}
-          <div>
-            <label className="block text-[11px] font-semibold text-[#8A8070] uppercase tracking-widest mb-1">
-              Resource
-            </label>
-            <select
-              value={resourceId}
-              onChange={(e) => setResourceId(e.target.value)}
-              className="w-full h-11 px-3.5 rounded-[6px] bg-[#F0EDE8]/60 text-[#242424] text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-[#8A8070] border-0"
-            >
-              {resources.map((r) => (
-                <option key={r.id} value={r.id} disabled={r.status === 'SUSPENDED'}>
-                  {r.name} ({r.type} · Cap: {r.capacity}){' '}
-                  {r.status === 'SUSPENDED' ? '— [SUSPENDED]' : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Date Picker */}
-          <div>
-            <label className="block text-[11px] font-semibold text-[#8A8070] uppercase tracking-widest mb-1">
-              Date (Within 30 Days)
-            </label>
-            <input
-              type="date"
-              value={date}
-              min="2026-10-13"
-              max="2026-11-12"
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full h-11 px-3.5 rounded-[6px] bg-[#F0EDE8]/60 text-[#242424] text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-[#8A8070] border-0"
-              required
-            />
-          </div>
-
-          {/* Start and End Time (30-min Grid) */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[11px] font-semibold text-[#8A8070] uppercase tracking-widest mb-1">
-                Start Time
-              </label>
-              <select
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                className="w-full h-11 px-3.5 rounded-[6px] bg-[#F0EDE8]/60 text-[#242424] text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-[#8A8070] border-0"
-              >
-                {[
-                  '08:00', '08:30', '09:00', '09:30', '10:00', '10:30',
-                  '11:00', '11:30', '12:00', '12:30', '13:00', '13:30',
-                  '14:00', '14:30', '15:00', '15:30', '16:00', '16:30',
-                  '17:00', '17:30'
-                ].map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-[11px] font-semibold text-[#8A8070] uppercase tracking-widest mb-1">
-                End Time
-              </label>
-              <select
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                className="w-full h-11 px-3.5 rounded-[6px] bg-[#F0EDE8]/60 text-[#242424] text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-[#8A8070] border-0"
-              >
-                {[
-                  '08:30', '09:00', '09:30', '10:00', '10:30',
-                  '11:00', '11:30', '12:00', '12:30', '13:00', '13:30',
-                  '14:00', '14:30', '15:00', '15:30', '16:00', '16:30',
-                  '17:00', '17:30', '18:00'
-                ].map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Purpose */}
-          <div>
-            <label className="block text-[11px] font-semibold text-[#8A8070] uppercase tracking-widest mb-1">
-              Purpose / Meeting Subject
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. Architectural Planning Sync"
-              value={purpose}
-              onChange={(e) => setPurpose(e.target.value)}
-              className="w-full h-11 px-3.5 rounded-[6px] bg-[#F0EDE8]/60 text-[#242424] text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-[#8A8070] border-0"
-            />
-          </div>
-
-          {/* Modal Footer */}
-          <div className="pt-3 border-t border-[#E5E0D8]/60 flex items-center justify-end gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2.5 rounded-[6px] text-[#8A8070] hover:text-[#242424] hover:bg-[#F0EDE8] font-semibold text-xs transition-colors cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={success}
-              className="px-5 py-2.5 rounded-[6px] bg-[#E8622A] text-white font-semibold text-xs hover:opacity-95 shadow-card transition-all cursor-pointer"
-            >
-              Confirm Allocation
-            </button>
-          </div>
-        </form>
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+    <section role="dialog" aria-modal="true" aria-label="New reservation" className="w-full max-w-lg max-h-[90vh] overflow-y-auto bg-[#FAFAF8] rounded-lg shadow-xl">
+      <div className="flex items-center justify-between p-5 border-b border-[#E5E0D8]">
+        <div><h2 className="text-xl text-[#242424] font-editorial">New reservation</h2><p className="text-xs text-[#8A8070]">All times are in Asia/Ho_Chi_Minh (UTC+7).</p></div>
+        <button type="button" aria-label="Close reservation" disabled={submitting} onClick={onClose} className="p-2">✕</button>
       </div>
-    </div>
-  );
+      <form onSubmit={handleSubmit} className="p-5 space-y-4">
+        {error && <p role="alert" className="p-3 text-sm bg-[#FFEBEE] text-[#C62828] rounded">{error}</p>}
+        {!resources && <label className="block text-xs">Find resource<input aria-label="Find resource" className={inputClass} value={resourceQuery} disabled={submitting}
+          onChange={e => { setResourceQuery(e.target.value); setResourcePage(0); setResourceId(''); setStart(''); setEnd(''); }} /></label>}
+        <label className="block text-xs">Resource<select aria-label="Resource" className={inputClass} value={resourceId} disabled={submitting || resourcesLoading} required onChange={e => { setResourceId(e.target.value); setStart(''); setEnd(''); }}>
+          <option value="">Select a resource</option>
+          {options.map(resource => <option key={resource.id} value={resource.id} disabled={resource.status !== 'AVAILABLE'}>{resource.name} · {resource.type}{resource.status !== 'AVAILABLE' ? ` (${resource.status})` : ''}</option>)}
+        </select></label>
+        {resourcesLoading && <p role="status" className="text-xs">Loading resources…</p>}
+        {catalogError && <p role="alert">{catalogError} <button type="button" onClick={() => setCatalogRevision(r => r + 1)}>Retry resources</button></p>}
+        {!resources && moreResources && <button type="button" disabled={resourcesLoading} onClick={() => setResourcePage(p => p + 1)} className="text-xs underline">Load more resources</button>}
+        {!resourcesLoading && !catalogError && options.length === 0 && <p role="status" className="text-xs">No available resources found.</p>}
+        {canDelegate && <fieldset className="space-y-2" disabled={submitting}>
+          <label className="block text-xs">Find a person<input aria-label="Find a person" className={inputClass} value={ownerQuery}
+            onChange={e => { setOwnerQuery(e.target.value); setOwnerPage(0); setOwnerId(''); }} /></label>
+          <label className="block text-xs">Book for<select aria-label="Book for" className={inputClass} value={ownerId} disabled={ownersLoading} onChange={e => setOwnerId(e.target.value)}>
+            <option value="">Myself</option>{owners.filter(owner => owner.id !== user?.id).map(owner => <option key={owner.id} value={owner.id}>{owner.username}</option>)}
+          </select></label>
+          {ownersLoading && <p role="status" className="text-xs">Loading people…</p>}
+          {ownerError && <p role="alert">{ownerError} You can still book for yourself.</p>}
+          {moreOwners && <button type="button" disabled={ownersLoading} onClick={() => setOwnerPage(p => p + 1)} className="text-xs underline">Load more people</button>}
+        </fieldset>}
+        <label className="block text-xs">Date<input aria-label="Date" type="date" required className={inputClass} value={date} min={businessDate()} max={dateAfter(businessDate(), 30)} disabled={submitting} onChange={e => { setDate(e.target.value); setStart(''); setEnd(''); }} /></label>
+        {resourceId && !current && <p role="status" className="text-sm">Loading availability…</p>}
+        {current?.error && <div role="alert" className="text-sm text-[#C62828]">{current.error} <button type="button" onClick={() => setRefresh(r => r + 1)} className="underline">Retry availability</button></div>}
+        {current?.value && slots.length === 0 && <p role="status" className="text-sm">No bookable slots on this date. Try another date or resource.</p>}
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block text-xs">Start time<select aria-label="Start time" required className={inputClass} value={start} disabled={submitting || !slots.length} onChange={e => { setStart(e.target.value); setEnd(''); }}>
+            <option value="">Select start</option>{slots.map(slot => <option key={slot.startTime} value={slot.startTime}>{businessTime(slot.startTime)}</option>)}
+          </select></label>
+          <label className="block text-xs">End time<select aria-label="End time" required className={inputClass} value={end} disabled={submitting || !ends.length} onChange={e => setEnd(e.target.value)}>
+            <option value="">Select end</option>{ends.map(value => <option key={value} value={value}>{businessTime(value)}</option>)}
+          </select></label>
+        </div>
+        <label className="block text-xs">Purpose<input aria-label="Purpose" className={inputClass} value={purpose} maxLength={500} disabled={submitting} onChange={e => setPurpose(e.target.value)} /></label>
+        <p className="text-xs text-[#8A8070]">Slots are not held until confirmation. Reservations last 30 minutes to 8 hours.</p>
+        <div className="flex justify-end gap-3 border-t border-[#E5E0D8] pt-4">
+          <button type="button" disabled={submitting} onClick={onClose}>Close</button>
+          <button type="submit" disabled={!ready || submitting} className="px-4 py-2 bg-[#D97757] text-white rounded-md disabled:opacity-50">{submitting ? 'Confirming…' : 'Confirm reservation'}</button>
+        </div>
+      </form>
+    </section>
+  </div>;
 };

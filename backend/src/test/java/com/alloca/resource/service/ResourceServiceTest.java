@@ -9,8 +9,8 @@ import static org.mockito.Mockito.when;
 
 import com.alloca.auth.domain.Department;
 import com.alloca.auth.repository.DepartmentRepository;
-import com.alloca.common.api.ApiException;
-import com.alloca.common.api.ErrorCode;
+import com.alloca.common.exception.ApiException;
+import com.alloca.common.exception.ErrorCode;
 import com.alloca.resource.domain.Resource;
 import com.alloca.resource.domain.ResourceSchedule;
 import com.alloca.resource.domain.ResourceStatus;
