@@ -1,8 +1,8 @@
 package com.alloca.resource.service;
 
-import com.alloca.common.api.ApiException;
-import com.alloca.common.api.ErrorCode;
-import com.alloca.common.api.ErrorResponse;
+import com.alloca.common.exception.ApiException;
+import com.alloca.common.exception.ErrorCode;
+import com.alloca.common.dto.ErrorResponse;
 import com.alloca.resource.domain.ScheduleWindow;
 import com.alloca.resource.dto.ResourceScheduleReplaceRequest;
 import java.time.DayOfWeek;

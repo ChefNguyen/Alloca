@@ -1,7 +1,7 @@
 package com.alloca.resource.controller;
 
-import com.alloca.common.api.ApiException;
-import com.alloca.common.api.PageResponse;
+import com.alloca.common.exception.ApiException;
+import com.alloca.common.dto.PageResponse;
 import com.alloca.resource.domain.ResourceStatus;
 import com.alloca.resource.domain.ResourceType;
 import com.alloca.resource.dto.ResourceCreateRequest;

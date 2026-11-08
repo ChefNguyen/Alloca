@@ -1,7 +1,7 @@
 package com.alloca.resource.service;
 
-import com.alloca.common.api.ApiException;
-import com.alloca.common.api.ErrorCode;
+import com.alloca.common.exception.ApiException;
+import com.alloca.common.exception.ErrorCode;
 import com.alloca.resource.domain.OperatingSchedule;
 import com.alloca.resource.domain.Resource;
 import com.alloca.resource.domain.ResourceSchedule;
