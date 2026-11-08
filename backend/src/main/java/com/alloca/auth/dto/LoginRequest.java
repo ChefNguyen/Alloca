@@ -1,4 +1,4 @@
-package com.alloca.auth.api.dto;
+package com.alloca.auth.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;

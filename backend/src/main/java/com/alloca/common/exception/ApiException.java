@@ -1,5 +1,6 @@
-package com.alloca.common.api;
+package com.alloca.common.exception;
 
+import com.alloca.common.dto.ErrorResponse;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.HttpStatus;

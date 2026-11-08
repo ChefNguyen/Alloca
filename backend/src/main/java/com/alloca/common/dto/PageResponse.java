@@ -1,4 +1,4 @@
-package com.alloca.common.api;
+package com.alloca.common.dto;
 
 import java.util.List;
 import java.util.function.Function;

@@ -1,11 +1,11 @@
 package com.alloca.auth.controller;
 
-import com.alloca.auth.api.dto.AccessTokenResponse;
-import com.alloca.auth.api.dto.DepartmentSummaryResponse;
-import com.alloca.auth.api.dto.LoginRequest;
-import com.alloca.auth.api.dto.LoginResponse;
-import com.alloca.auth.api.dto.RefreshTokenRequest;
-import com.alloca.auth.api.dto.UserResponse;
+import com.alloca.auth.dto.AccessTokenResponse;
+import com.alloca.auth.dto.DepartmentSummaryResponse;
+import com.alloca.auth.dto.LoginRequest;
+import com.alloca.auth.dto.LoginResponse;
+import com.alloca.auth.dto.RefreshTokenRequest;
+import com.alloca.auth.dto.UserResponse;
 import com.alloca.auth.domain.Role;
 import com.alloca.auth.exception.ExpiredTokenException;
 import com.alloca.auth.exception.InvalidTokenException;
@@ -14,7 +14,7 @@ import com.alloca.auth.security.JwtAuthenticationFilter;
 import com.alloca.auth.security.RestAccessDeniedHandler;
 import com.alloca.auth.security.UserPrincipal;
 import com.alloca.auth.service.AuthService;
-import com.alloca.common.api.GlobalExceptionHandler;
+import com.alloca.common.exception.GlobalExceptionHandler;
 import com.alloca.config.SecurityConfig;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;

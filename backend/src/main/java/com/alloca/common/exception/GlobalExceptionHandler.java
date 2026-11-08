@@ -1,5 +1,6 @@
-package com.alloca.common.api;
+package com.alloca.common.exception;
 
+import com.alloca.common.dto.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;

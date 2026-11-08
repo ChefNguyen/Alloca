@@ -5,10 +5,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-import com.alloca.auth.api.dto.LoginRequest;
-import com.alloca.auth.api.dto.LoginResponse;
-import com.alloca.auth.api.dto.RefreshTokenRequest;
-import com.alloca.auth.api.dto.AccessTokenResponse;
+import com.alloca.auth.dto.LoginRequest;
+import com.alloca.auth.dto.LoginResponse;
+import com.alloca.auth.dto.RefreshTokenRequest;
+import com.alloca.auth.dto.AccessTokenResponse;
 import com.alloca.auth.exception.InvalidTokenException;
 import com.alloca.auth.domain.Department;
 import com.alloca.auth.domain.Role;

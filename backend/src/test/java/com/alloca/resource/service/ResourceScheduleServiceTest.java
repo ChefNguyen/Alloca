@@ -10,8 +10,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.alloca.common.api.ApiException;
-import com.alloca.common.api.ErrorCode;
+import com.alloca.common.exception.ApiException;
+import com.alloca.common.exception.ErrorCode;
 import com.alloca.resource.domain.Resource;
 import com.alloca.resource.domain.ResourceSchedule;
 import com.alloca.resource.domain.ResourceStatus;

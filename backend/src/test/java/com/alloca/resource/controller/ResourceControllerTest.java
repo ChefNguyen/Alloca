@@ -19,15 +19,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.alloca.common.api.ApiException;
-import com.alloca.common.api.ErrorCode;
+import com.alloca.common.exception.ApiException;
+import com.alloca.common.exception.ErrorCode;
 import com.alloca.auth.security.JwtAuthenticationEntryPoint;
 import com.alloca.auth.security.JwtAuthenticationFilter;
 import com.alloca.auth.security.RestAccessDeniedHandler;
 import com.alloca.config.SecurityConfig;
 import com.alloca.resource.domain.ResourceStatus;
 import com.alloca.resource.domain.ResourceType;
-import com.alloca.common.api.PageResponse;
+import com.alloca.common.dto.PageResponse;
 import com.alloca.resource.dto.ResourceDetailResponse;
 import com.alloca.resource.dto.ResourceResponse;
 import com.alloca.resource.service.ResourceService;

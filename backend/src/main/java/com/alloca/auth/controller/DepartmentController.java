@@ -1,7 +1,7 @@
 package com.alloca.auth.controller;
 
-import com.alloca.auth.api.dto.DepartmentResponse;
-import com.alloca.auth.api.dto.DepartmentWriteRequest;
+import com.alloca.auth.dto.DepartmentResponse;
+import com.alloca.auth.dto.DepartmentWriteRequest;
 import com.alloca.auth.service.DepartmentService;
 import jakarta.validation.Valid;
 import java.net.URI;

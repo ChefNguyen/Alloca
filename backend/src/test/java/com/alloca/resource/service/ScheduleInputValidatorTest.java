@@ -3,8 +3,8 @@ package com.alloca.resource.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.alloca.common.api.ApiException;
-import com.alloca.common.api.ErrorCode;
+import com.alloca.common.exception.ApiException;
+import com.alloca.common.exception.ErrorCode;
 import com.alloca.resource.domain.ScheduleWindow;
 import com.alloca.resource.dto.ResourceScheduleReplaceRequest;
 import com.alloca.resource.dto.ResourceScheduleReplaceRequest.Window;

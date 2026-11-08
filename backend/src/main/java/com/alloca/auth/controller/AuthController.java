@@ -1,6 +1,6 @@
 package com.alloca.auth.controller;
 
-import com.alloca.auth.api.dto.UserResponse;
+import com.alloca.auth.dto.UserResponse;
 import com.alloca.auth.security.UserPrincipal;
 import com.alloca.auth.service.AuthService;
 import com.alloca.auth.security.RefreshCookie;
@@ -11,10 +11,10 @@ import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.http.HttpHeaders;
 import lombok.RequiredArgsConstructor;
 
-import com.alloca.auth.api.dto.LoginRequest;
-import com.alloca.auth.api.dto.LoginResponse;
-import com.alloca.auth.api.dto.AccessTokenResponse;
-import com.alloca.auth.api.dto.RefreshTokenRequest;
+import com.alloca.auth.dto.LoginRequest;
+import com.alloca.auth.dto.LoginResponse;
+import com.alloca.auth.dto.AccessTokenResponse;
+import com.alloca.auth.dto.RefreshTokenRequest;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;

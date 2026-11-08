@@ -1,4 +1,4 @@
-package com.alloca.common.api;
+package com.alloca.common.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import java.time.Instant;

@@ -1,4 +1,4 @@
-package com.alloca.auth.api.dto;
+package com.alloca.auth.dto;
 
 import com.alloca.auth.domain.Department;
 import java.time.Instant;

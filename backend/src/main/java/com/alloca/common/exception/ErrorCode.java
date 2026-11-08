@@ -1,4 +1,4 @@
-package com.alloca.common.api;
+package com.alloca.common.exception;
 
 /** Machine-readable error codes from the OpenAPI {@code ErrorResponse.code} enum. */
 public enum ErrorCode {
@@ -13,8 +13,14 @@ public enum ErrorCode {
     ZONE_NOT_FOUND,
     ZONE_IN_USE,
     RESOURCE_NOT_FOUND,
+    RESOURCE_NOT_AVAILABLE,
+    RESOURCE_HAS_FUTURE_BOOKINGS,
     RESOURCE_HAS_ONGOING_OR_FUTURE_BOOKINGS,
     RESOURCE_SCHEDULE_CONFLICTS_WITH_BOOKINGS,
     INVALID_RESOURCE_STATUS_TRANSITION,
+    OUTSIDE_OPERATING_HOURS,
+    BOOKING_NOT_FOUND,
+    BOOKING_TIME_CONFLICT,
+    BOOKING_CANNOT_BE_CANCELLED,
     INTERNAL_SERVER_ERROR
 }
