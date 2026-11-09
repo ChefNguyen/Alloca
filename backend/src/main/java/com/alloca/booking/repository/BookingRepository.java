@@ -82,4 +82,16 @@ public interface BookingRepository extends JpaRepository<Booking, UUID>, JpaSpec
         @Param("periodStart") Instant periodStart,
         @Param("periodEnd") Instant periodEnd
     );
+
+    @Query("""
+        select b from Booking b
+        where b.resource.id in :resourceIds
+        and b.startTime >= :periodStart
+        and b.startTime < :periodEnd
+            """)
+    List<Booking> findBookingsStartingInPeriod(
+        @Param("resourceIds") Collection<UUID> resourceIds,
+        @Param("periodStart") Instant periodStart,
+        @Param("periodEnd") Instant periodEnd
+    );
 }

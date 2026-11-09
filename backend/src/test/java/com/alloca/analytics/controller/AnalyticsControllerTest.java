@@ -11,6 +11,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.alloca.analytics.dto.BookingTrendPoint;
+import com.alloca.analytics.dto.BookingTrendReportResponse;
 import com.alloca.analytics.dto.UtilizationMetric;
 import com.alloca.analytics.dto.UtilizationReportResponse;
 import com.alloca.analytics.service.AnalyticsService;
@@ -100,6 +102,45 @@ class AnalyticsControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.from").value("2026-10-05"))
                 .andExpect(jsonPath("$.metrics").isArray());
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/analytics/trends with admin returns 200 and matches OpenAPI schema")
+    void testGetTrends_Admin_Success() throws Exception {
+        LocalDate from = LocalDate.of(2026, 10, 5);
+        LocalDate to = LocalDate.of(2026, 10, 7);
+
+        BookingTrendPoint p1 = new BookingTrendPoint(from, 3, 2, 1);
+        BookingTrendPoint p2 = new BookingTrendPoint(from.plusDays(1), 5, 0, 0);
+        BookingTrendReportResponse report = new BookingTrendReportResponse(from, to, List.of(p1, p2));
+
+        when(service.getBookingTrends(any(), eq(from), eq(to), any(), any()))
+                .thenReturn(report);
+
+        mvc.perform(get("/api/v1/analytics/trends")
+                        .with(admin())
+                        .param("from", "2026-10-05")
+                        .param("to", "2026-10-07"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.from").value("2026-10-05"))
+                .andExpect(jsonPath("$.to").value("2026-10-07"))
+                .andExpect(jsonPath("$.timezone").value("Asia/Ho_Chi_Minh"))
+                .andExpect(jsonPath("$.points[0].date").value("2026-10-05"))
+                .andExpect(jsonPath("$.points[0].confirmedCount").value(3))
+                .andExpect(jsonPath("$.points[0].completedCount").value(2))
+                .andExpect(jsonPath("$.points[0].cancelledCount").value(1))
+                .andExpect(jsonPath("$.points[1].date").value("2026-10-06"))
+                .andExpect(jsonPath("$.points[1].confirmedCount").value(5));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/analytics/trends with employee returns 403 Forbidden")
+    void testGetTrends_Employee_Forbidden() throws Exception {
+        mvc.perform(get("/api/v1/analytics/trends")
+                        .with(employee())
+                        .param("from", "2026-10-05")
+                        .param("to", "2026-10-07"))
+                .andExpect(status().isForbidden());
     }
 
     @Test

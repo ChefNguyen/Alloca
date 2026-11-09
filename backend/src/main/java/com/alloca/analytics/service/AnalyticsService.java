@@ -1,5 +1,7 @@
 package com.alloca.analytics.service;
 
+import com.alloca.analytics.dto.BookingTrendPoint;
+import com.alloca.analytics.dto.BookingTrendReportResponse;
 import com.alloca.analytics.dto.UtilizationMetric;
 import com.alloca.analytics.dto.UtilizationReportResponse;
 import com.alloca.auth.security.UserPrincipal;
@@ -37,10 +39,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Application service for utilization metrics and alert episodes.
+ * Application service for utilization metrics, booking trends, and alert episodes.
  *
  * <p>Implements ALC-48 (utilization calculation formula, scheduled-time clip,
- * operating windows denominator, rate null handling) and ALC-52 (department scope).
+ * operating windows denominator, rate null handling), ALC-49 (booking trends by
+ * local start date), and ALC-52 (department scope).
  */
 @Service
 @RequiredArgsConstructor
@@ -116,6 +119,53 @@ public class AnalyticsService {
         return new UtilizationReportResponse(from, to, metrics);
     }
 
+    @Transactional(readOnly = true)
+    public BookingTrendReportResponse getBookingTrends(
+            UserPrincipal principal, LocalDate from, LocalDate to, UUID resourceId, UUID departmentId) {
+        validateDateRange(from, to);
+        validateAndEnforceScope(principal, resourceId, departmentId);
+
+        UUID effectiveDepartmentId = departmentId;
+        if (principal != null && principal.isManager()) {
+            effectiveDepartmentId = principal.getDepartmentId();
+        }
+
+        List<Resource> resources = resolveResources(resourceId, effectiveDepartmentId, principal);
+        if (resources.isEmpty()) {
+            return new BookingTrendReportResponse(from, to, buildEmptyTrendPoints(from, to));
+        }
+
+        List<UUID> resourceIds = resources.stream().map(Resource::getId).toList();
+        Instant periodStartUtc = from.atStartOfDay(BUSINESS_ZONE).toInstant();
+        Instant periodEndUtc = to.atStartOfDay(BUSINESS_ZONE).toInstant();
+
+        List<Booking> bookings = bookingRepository.findBookingsStartingInPeriod(
+                resourceIds, periodStartUtc, periodEndUtc);
+
+        Map<LocalDate, int[]> countsByDate = new HashMap<>();
+        for (Booking b : bookings) {
+            LocalDate localDate = b.getStartTime().atZone(BUSINESS_ZONE).toLocalDate();
+            int[] counts = countsByDate.computeIfAbsent(localDate, k -> new int[3]);
+            if (b.getStatus() == BookingStatus.CONFIRMED) {
+                counts[0]++;
+            } else if (b.getStatus() == BookingStatus.COMPLETED) {
+                counts[1]++;
+            } else if (b.getStatus() == BookingStatus.CANCELLED) {
+                counts[2]++;
+            }
+        }
+
+        List<BookingTrendPoint> points = new ArrayList<>();
+        LocalDate cur = from;
+        while (cur.isBefore(to)) {
+            int[] counts = countsByDate.getOrDefault(cur, new int[3]);
+            points.add(new BookingTrendPoint(cur, counts[0], counts[1], counts[2]));
+            cur = cur.plusDays(1);
+        }
+
+        return new BookingTrendReportResponse(from, to, points);
+    }
+
     public int calculateOperatingMinutes(
             List<ResourceSchedule> schedules, LocalDate from, LocalDate to) {
         if (schedules == null || schedules.isEmpty() || !from.isBefore(to)) {
@@ -168,6 +218,16 @@ public class AnalyticsService {
         }
 
         return totalMinutes;
+    }
+
+    private List<BookingTrendPoint> buildEmptyTrendPoints(LocalDate from, LocalDate to) {
+        List<BookingTrendPoint> points = new ArrayList<>();
+        LocalDate cur = from;
+        while (cur.isBefore(to)) {
+            points.add(new BookingTrendPoint(cur, 0, 0, 0));
+            cur = cur.plusDays(1);
+        }
+        return points;
     }
 
     private void validateDateRange(LocalDate from, LocalDate to) {

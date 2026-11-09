@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
+import com.alloca.analytics.dto.BookingTrendReportResponse;
 import com.alloca.analytics.dto.UtilizationReportResponse;
 import com.alloca.auth.domain.Department;
 import com.alloca.auth.domain.Role;
@@ -22,7 +23,6 @@ import com.alloca.resource.domain.ResourceType;
 import com.alloca.resource.domain.Zone;
 import com.alloca.resource.repository.ResourceRepository;
 import com.alloca.resource.repository.ResourceScheduleRepository;
-import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
 import java.time.Instant;
@@ -68,7 +68,7 @@ class AnalyticsServiceTest {
     private UserPrincipal employeePrincipal;
 
     @BeforeEach
-    void setUp() throws Exception {
+    void setUp() {
         UUID deptId = UUID.randomUUID();
         testDept = new Department(deptId, "Engineering");
         testZone = new Zone(UUID.randomUUID(), "Main Tower", "3", "Floor 3 West");
@@ -97,7 +97,7 @@ class AnalyticsServiceTest {
 
     @Test
     @DisplayName("TC-STAT-01: Operating 9h; CONFIRMED 4h + COMPLETED 4h + CANCELLED 1h -> rate is 88.89%")
-    void testTcStat01_ConfirmedAndCompletedIncluded_CancelledExcluded() throws Exception {
+    void testTcStat01_ConfirmedAndCompletedIncluded_CancelledExcluded() {
         LocalDate from = LocalDate.of(2026, 10, 5); // Monday
         LocalDate to = LocalDate.of(2026, 10, 6);   // Tuesday (1 day report)
 
@@ -133,7 +133,7 @@ class AnalyticsServiceTest {
 
     @Test
     @DisplayName("TC-STAT-02: Report range clips crossing bookings and strictly respects exclusive 'to' boundary")
-    void testTcStat02_ClippedBookingsAndAdjacentBoundaries() throws Exception {
+    void testTcStat02_ClippedBookingsAndAdjacentBoundaries() {
         LocalDate from = LocalDate.of(2026, 10, 6); // Tuesday
         LocalDate to = LocalDate.of(2026, 10, 7);   // Wednesday
 
@@ -197,6 +197,59 @@ class AnalyticsServiceTest {
     }
 
     @Test
+    @DisplayName("ALC-49 / TC-STAT-06: Booking trends aggregate by local startTime date and status")
+    void testAlc49_BookingTrendsAggregation() {
+        LocalDate from = LocalDate.of(2026, 10, 5); // Monday
+        LocalDate to = LocalDate.of(2026, 10, 8);   // Thursday (3 days: 5, 6, 7)
+
+        // Monday: 1 CONFIRMED, 1 COMPLETED
+        Booking b1 = createBooking(testRoom, BookingStatus.CONFIRMED,
+                from.atTime(10, 0).atZone(ZONE).toInstant(), from.atTime(11, 0).atZone(ZONE).toInstant());
+        Booking b2 = createBooking(testRoom, BookingStatus.COMPLETED,
+                from.atTime(14, 0).atZone(ZONE).toInstant(), from.atTime(15, 0).atZone(ZONE).toInstant());
+
+        // Tuesday: 1 CANCELLED
+        Booking b3 = createBooking(testRoom, BookingStatus.CANCELLED,
+                from.plusDays(1).atTime(9, 0).atZone(ZONE).toInstant(), from.plusDays(1).atTime(10, 0).atZone(ZONE).toInstant());
+
+        // Wednesday: 0 bookings
+
+        when(resourceRepository.findAll(any(Specification.class)))
+                .thenReturn(List.of(testRoom));
+        when(bookingRepository.findBookingsStartingInPeriod(
+                eq(List.of(testRoom.getId())), any(), any()))
+                .thenReturn(List.of(b1, b2, b3));
+
+        BookingTrendReportResponse report = analyticsService.getBookingTrends(adminPrincipal, from, to, null, null);
+
+        assertThat(report.from()).isEqualTo(from);
+        assertThat(report.to()).isEqualTo(to);
+        assertThat(report.timezone()).isEqualTo("Asia/Ho_Chi_Minh");
+        assertThat(report.points()).hasSize(3);
+
+        // Day 1 (Monday)
+        var p1 = report.points().get(0);
+        assertThat(p1.date()).isEqualTo(from);
+        assertThat(p1.confirmedCount()).isEqualTo(1);
+        assertThat(p1.completedCount()).isEqualTo(1);
+        assertThat(p1.cancelledCount()).isEqualTo(0);
+
+        // Day 2 (Tuesday)
+        var p2 = report.points().get(1);
+        assertThat(p2.date()).isEqualTo(from.plusDays(1));
+        assertThat(p2.confirmedCount()).isEqualTo(0);
+        assertThat(p2.completedCount()).isEqualTo(0);
+        assertThat(p2.cancelledCount()).isEqualTo(1);
+
+        // Day 3 (Wednesday)
+        var p3 = report.points().get(2);
+        assertThat(p3.date()).isEqualTo(from.plusDays(2));
+        assertThat(p3.confirmedCount()).isEqualTo(0);
+        assertThat(p3.completedCount()).isEqualTo(0);
+        assertThat(p3.cancelledCount()).isEqualTo(0);
+    }
+
+    @Test
     @DisplayName("TC-SCOPE-03 / ALC-52: Manager querying other department is rejected with 403 ACCESS_DENIED")
     void testTcScope03_ManagerQueryingOtherDepartment_Returns403() {
         LocalDate from = LocalDate.of(2026, 10, 5);
@@ -204,6 +257,15 @@ class AnalyticsServiceTest {
         UUID differentDeptId = UUID.randomUUID();
 
         assertThatThrownBy(() -> analyticsService.getUtilizationReport(
+                managerPrincipal, from, to, null, differentDeptId))
+                .isInstanceOf(ApiException.class)
+                .satisfies(ex -> {
+                    ApiException apiEx = (ApiException) ex;
+                    assertThat(apiEx.getStatus()).isEqualTo(HttpStatus.FORBIDDEN);
+                    assertThat(apiEx.getCode()).isEqualTo(ErrorCode.ACCESS_DENIED);
+                });
+
+        assertThatThrownBy(() -> analyticsService.getBookingTrends(
                 managerPrincipal, from, to, null, differentDeptId))
                 .isInstanceOf(ApiException.class)
                 .satisfies(ex -> {
@@ -240,6 +302,15 @@ class AnalyticsServiceTest {
         LocalDate to = LocalDate.of(2026, 10, 12);
 
         assertThatThrownBy(() -> analyticsService.getUtilizationReport(
+                employeePrincipal, from, to, null, null))
+                .isInstanceOf(ApiException.class)
+                .satisfies(ex -> {
+                    ApiException apiEx = (ApiException) ex;
+                    assertThat(apiEx.getStatus()).isEqualTo(HttpStatus.FORBIDDEN);
+                    assertThat(apiEx.getCode()).isEqualTo(ErrorCode.ACCESS_DENIED);
+                });
+
+        assertThatThrownBy(() -> analyticsService.getBookingTrends(
                 employeePrincipal, from, to, null, null))
                 .isInstanceOf(ApiException.class)
                 .satisfies(ex -> {
