@@ -1,20 +1,22 @@
 package com.alloca.booking.repository;
 
 import com.alloca.booking.domain.Booking;
+import com.alloca.booking.domain.BookingStatus;
 import com.alloca.booking.domain.TimeSlot;
 import jakarta.persistence.LockModeType;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
-import org.springframework.data.jpa.repository.EntityGraph;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface BookingRepository extends JpaRepository<Booking, UUID>, JpaSpecificationExecutor<Booking> {
@@ -65,5 +67,19 @@ public interface BookingRepository extends JpaRepository<Booking, UUID>, JpaSpec
         @Param("resourceId") UUID resourceId,
         @Param("endTime") Instant endTime,
         @Param("startTime") Instant startTime
+    );
+
+    @Query("""
+        select b from Booking b
+        where b.resource.id in :resourceIds
+        and b.status in :statuses
+        and b.startTime < :periodEnd
+        and b.endTime > :periodStart
+            """)
+    List<Booking> findBookingsIntersectingPeriod(
+        @Param("resourceIds") Collection<UUID> resourceIds,
+        @Param("statuses") Collection<BookingStatus> statuses,
+        @Param("periodStart") Instant periodStart,
+        @Param("periodEnd") Instant periodEnd
     );
 }

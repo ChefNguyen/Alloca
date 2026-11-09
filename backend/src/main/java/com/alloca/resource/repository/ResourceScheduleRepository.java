@@ -14,6 +14,8 @@ public interface ResourceScheduleRepository extends JpaRepository<ResourceSchedu
 
     List<ResourceSchedule> findByResourceIdAndDayOfWeekOrderByStartTimeAsc(UUID resourceId, short dayOfWeek);
 
+    List<ResourceSchedule> findByResourceIdIn(java.util.Collection<UUID> resourceIds);
+
     /**
      * Bulk delete that is flushed immediately. Hibernate otherwise runs inserts before deletes,
      * which would violate {@code uq_resource_schedules_window} when a window is re-saved unchanged.
