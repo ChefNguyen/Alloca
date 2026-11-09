@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { Link, useOutletContext } from 'react-router-dom';
 import { mockResources } from '@/mock/data';
 import { Booking, Resource } from '@/types/api';
 
@@ -302,10 +302,13 @@ export const Dashboard: React.FC = () => {
           </div>
 
           {/* 3. Stacked Metric Card: Utilization Rate (p-4 sm:p-5) */}
-          <div className="bg-[#FAFAF8] rounded-[8px] p-4 sm:p-5 shadow-sm flex items-center justify-between border-0">
+          <Link
+            to="/analytics"
+            className="bg-[#FAFAF8] rounded-[8px] p-4 sm:p-5 shadow-sm flex items-center justify-between border-0 hover:bg-[#F5F2EB] transition-colors group cursor-pointer"
+          >
             <div className="space-y-2">
-              <span className="text-[10px] uppercase font-[500] text-[#A8A29E] tracking-[0.08em] block">
-                Utilization Rate
+              <span className="text-[10px] uppercase font-[500] text-[#A8A29E] tracking-[0.08em] block group-hover:text-[#D97757] transition-colors">
+                Utilization Rate →
               </span>
               <div className="text-[52px] font-bold text-[#242424] leading-none tracking-tight">
                 72%
@@ -336,7 +339,7 @@ export const Dashboard: React.FC = () => {
               </svg>
               <span className="absolute text-[11px] font-bold text-[#242424]">L03</span>
             </div>
-          </div>
+          </Link>
         </div>
 
         {/* ========================================================= */}
