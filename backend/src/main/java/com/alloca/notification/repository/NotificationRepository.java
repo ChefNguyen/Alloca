@@ -36,4 +36,24 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
             @Param("title") String title,
             @Param("message") String message,
             @Param("createdAt") Instant createdAt);
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    @Modifying(flushAutomatically = true)
+    @Query(value = """
+            insert into notifications
+                (id, user_id, alert_id, event_type, dedup_key, title, message, is_read, created_at)
+            select :id, u.id, :alertId, :eventType, :dedupKey, :title, :message, false, :createdAt
+            from users u
+            where u.id = :recipientId and u.is_active = true
+            on conflict (dedup_key) do nothing
+            """, nativeQuery = true)
+    int insertAlertNotification(
+            @Param("id") UUID id,
+            @Param("recipientId") UUID recipientId,
+            @Param("alertId") UUID alertId,
+            @Param("eventType") String eventType,
+            @Param("dedupKey") String dedupKey,
+            @Param("title") String title,
+            @Param("message") String message,
+            @Param("createdAt") Instant createdAt);
 }

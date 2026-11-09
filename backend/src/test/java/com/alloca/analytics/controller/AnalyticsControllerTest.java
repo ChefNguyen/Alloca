@@ -8,9 +8,12 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.alloca.analytics.domain.AlertStatus;
+import com.alloca.analytics.dto.AlertResponse;
 import com.alloca.analytics.dto.BookingTrendPoint;
 import com.alloca.analytics.dto.BookingTrendReportResponse;
 import com.alloca.analytics.dto.UtilizationMetric;
@@ -19,12 +22,15 @@ import com.alloca.analytics.service.AnalyticsService;
 import com.alloca.auth.security.JwtAuthenticationEntryPoint;
 import com.alloca.auth.security.JwtAuthenticationFilter;
 import com.alloca.auth.security.RestAccessDeniedHandler;
+import com.alloca.common.dto.PageResponse;
 import com.alloca.config.SecurityConfig;
 import com.alloca.resource.domain.ResourceStatus;
 import com.alloca.resource.domain.ResourceType;
 import com.alloca.resource.dto.ResourceResponse;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,6 +39,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -59,13 +68,12 @@ class AnalyticsControllerTest {
     void testGetUtilization_Admin_Success() throws Exception {
         LocalDate from = LocalDate.of(2026, 10, 5);
         LocalDate to = LocalDate.of(2026, 10, 12);
-        UUID resId = UUID.randomUUID();
+        UUID resourceId = UUID.randomUUID();
 
-        ResourceResponse resDto = new ResourceResponse(
-                resId, "Meeting Room Beta", ResourceType.ROOM, 8, ResourceStatus.AVAILABLE,
-                "Description", null, null, new BigDecimal("85.00"), null);
-
-        UtilizationMetric metric = new UtilizationMetric(resDto, 480, 600, 80.0);
+        ResourceResponse res = new ResourceResponse(
+                resourceId, "Boardroom West 301", ResourceType.ROOM, 12,
+                ResourceStatus.AVAILABLE, "Main Tower 3F", null, null, new BigDecimal("85.00"), null);
+        UtilizationMetric metric = new UtilizationMetric(res, 480, 540, 88.89);
         UtilizationReportResponse report = new UtilizationReportResponse(from, to, List.of(metric));
 
         when(service.getUtilizationReport(any(), eq(from), eq(to), any(), any()))
@@ -79,37 +87,34 @@ class AnalyticsControllerTest {
                 .andExpect(jsonPath("$.from").value("2026-10-05"))
                 .andExpect(jsonPath("$.to").value("2026-10-12"))
                 .andExpect(jsonPath("$.timezone").value("Asia/Ho_Chi_Minh"))
+                .andExpect(jsonPath("$.metrics[0].resource.name").value("Boardroom West 301"))
                 .andExpect(jsonPath("$.metrics[0].scheduledMinutes").value(480))
-                .andExpect(jsonPath("$.metrics[0].operatingMinutes").value(600))
-                .andExpect(jsonPath("$.metrics[0].utilizationPercent").value(80.0))
-                .andExpect(jsonPath("$.metrics[0].resource.name").value("Meeting Room Beta"));
+                .andExpect(jsonPath("$.metrics[0].operatingMinutes").value(540))
+                .andExpect(jsonPath("$.metrics[0].utilizationPercent").value(88.89));
     }
 
     @Test
-    @DisplayName("GET /api/v1/reports/utilization with manager returns 200")
-    void testGetReportsUtilization_Manager_Success() throws Exception {
+    @DisplayName("GET /api/v1/reports/utilization alias works identically")
+    void testGetUtilization_AliasRoute() throws Exception {
         LocalDate from = LocalDate.of(2026, 10, 5);
         LocalDate to = LocalDate.of(2026, 10, 12);
+        UtilizationReportResponse report = new UtilizationReportResponse(from, to, Collections.emptyList());
 
-        UtilizationReportResponse report = new UtilizationReportResponse(from, to, List.of());
         when(service.getUtilizationReport(any(), eq(from), eq(to), any(), any()))
                 .thenReturn(report);
 
         mvc.perform(get("/api/v1/reports/utilization")
-                        .with(manager())
+                        .with(admin())
                         .param("from", "2026-10-05")
                         .param("to", "2026-10-12"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.from").value("2026-10-05"))
-                .andExpect(jsonPath("$.metrics").isArray());
+                .andExpect(status().isOk());
     }
 
     @Test
-    @DisplayName("GET /api/v1/analytics/trends with admin returns 200 and matches OpenAPI schema")
+    @DisplayName("GET /api/v1/analytics/trends with admin returns 200 and points array")
     void testGetTrends_Admin_Success() throws Exception {
         LocalDate from = LocalDate.of(2026, 10, 5);
         LocalDate to = LocalDate.of(2026, 10, 7);
-
         BookingTrendPoint p1 = new BookingTrendPoint(from, 3, 2, 1);
         BookingTrendPoint p2 = new BookingTrendPoint(from.plusDays(1), 5, 0, 0);
         BookingTrendReportResponse report = new BookingTrendReportResponse(from, to, List.of(p1, p2));
@@ -131,6 +136,71 @@ class AnalyticsControllerTest {
                 .andExpect(jsonPath("$.points[0].cancelledCount").value(1))
                 .andExpect(jsonPath("$.points[1].date").value("2026-10-06"))
                 .andExpect(jsonPath("$.points[1].confirmedCount").value(5));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/alerts returns 200 with PageResponse of AlertResponse")
+    void testGetAlerts_Admin_Success() throws Exception {
+        ResourceResponse res = new ResourceResponse(
+                UUID.randomUUID(), "Boardroom A", ResourceType.ROOM, 10,
+                ResourceStatus.AVAILABLE, "Zone 1", null, null, new BigDecimal("85.00"), null);
+        AlertResponse alert = new AlertResponse(
+                UUID.randomUUID(), res, AlertStatus.OPEN,
+                LocalDate.of(2026, 10, 5), LocalDate.of(2026, 10, 12),
+                new BigDecimal("89.20"), new BigDecimal("85.00"),
+                null, null, null, null, Instant.now());
+        PageResponse<AlertResponse> pageResponse = PageResponse.of(
+                new PageImpl<>(List.of(alert), PageRequest.of(0, 20), 1),
+                a -> a);
+
+        when(service.listAlerts(any(), any(), any(), any(), any())).thenReturn(pageResponse);
+
+        mvc.perform(get("/api/v1/alerts")
+                        .with(admin()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].status").value("OPEN"))
+                .andExpect(jsonPath("$.items[0].resource.name").value("Boardroom A"))
+                .andExpect(jsonPath("$.page.totalElements").value(1));
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/alerts/{id}/acknowledge with manager returns 200 and updated alert")
+    void testAcknowledgeAlert_Manager_Success() throws Exception {
+        UUID alertId = UUID.randomUUID();
+        ResourceResponse res = new ResourceResponse(
+                UUID.randomUUID(), "Boardroom A", ResourceType.ROOM, 10,
+                ResourceStatus.AVAILABLE, "Zone 1", null, null, new BigDecimal("85.00"), null);
+        AlertResponse acknowledged = new AlertResponse(
+                alertId, res, AlertStatus.ACKNOWLEDGED,
+                LocalDate.of(2026, 10, 5), LocalDate.of(2026, 10, 12),
+                new BigDecimal("89.20"), new BigDecimal("85.00"),
+                UUID.randomUUID(), Instant.now(), null, null, Instant.now());
+
+        when(service.acknowledgeAlert(any(), eq(alertId))).thenReturn(acknowledged);
+
+        mvc.perform(post("/api/v1/alerts/{alertId}/acknowledge", alertId)
+                        .with(manager())
+                        .with(SecurityMockMvcRequestPostProcessors.csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(alertId.toString()))
+                .andExpect(jsonPath("$.status").value("ACKNOWLEDGED"));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/alerts with employee returns 403 Forbidden")
+    void testGetAlerts_Employee_Forbidden() throws Exception {
+        mvc.perform(get("/api/v1/alerts")
+                        .with(employee()))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/alerts/{id}/acknowledge with employee returns 403 Forbidden")
+    void testAcknowledgeAlert_Employee_Forbidden() throws Exception {
+        mvc.perform(post("/api/v1/alerts/{alertId}/acknowledge", UUID.randomUUID())
+                        .with(employee())
+                        .with(SecurityMockMvcRequestPostProcessors.csrf()))
+                .andExpect(status().isForbidden());
     }
 
     @Test

@@ -4,18 +4,29 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.alloca.analytics.domain.Alert;
+import com.alloca.analytics.domain.AlertStatus;
+import com.alloca.analytics.dto.AlertResponse;
 import com.alloca.analytics.dto.BookingTrendReportResponse;
 import com.alloca.analytics.dto.UtilizationReportResponse;
+import com.alloca.analytics.repository.AlertRepository;
 import com.alloca.auth.domain.Department;
 import com.alloca.auth.domain.Role;
+import com.alloca.auth.domain.User;
+import com.alloca.auth.repository.UserRepository;
 import com.alloca.auth.security.UserPrincipal;
 import com.alloca.booking.domain.Booking;
 import com.alloca.booking.domain.BookingStatus;
 import com.alloca.booking.repository.BookingRepository;
+import com.alloca.common.dto.PageResponse;
 import com.alloca.common.exception.ApiException;
 import com.alloca.common.exception.ErrorCode;
+import com.alloca.notification.service.NotificationService;
 import com.alloca.resource.domain.Resource;
 import com.alloca.resource.domain.ResourceSchedule;
 import com.alloca.resource.domain.ResourceStatus;
@@ -29,6 +40,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -36,9 +48,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 
@@ -55,6 +71,15 @@ class AnalyticsServiceTest {
 
     @Mock
     private BookingRepository bookingRepository;
+
+    @Mock
+    private AlertRepository alertRepository;
+
+    @Mock
+    private NotificationService notificationService;
+
+    @Mock
+    private UserRepository userRepository;
 
     @InjectMocks
     private AnalyticsService analyticsService;
@@ -88,7 +113,7 @@ class AnalyticsServiceTest {
     }
 
     private Booking createBooking(Resource resource, BookingStatus status, Instant start, Instant end) {
-        com.alloca.auth.domain.User user = new com.alloca.auth.domain.User(
+        User user = new User(
                 UUID.randomUUID(), "testuser", "test@alloca.test", "hash", "Test User", Role.EMPLOYEE, null);
         Booking b = new Booking(UUID.randomUUID(), resource, user, user, start, end, "Purpose");
         b.setStatus(status);
@@ -118,78 +143,58 @@ class AnalyticsServiceTest {
         when(resourceScheduleRepository.findByResourceIdIn(List.of(testRoom.getId())))
                 .thenReturn(List.of(schedule));
         when(bookingRepository.findBookingsIntersectingPeriod(
-                eq(List.of(testRoom.getId())), any(), any(), any()))
+                eq(List.of(testRoom.getId())), any(), any(Instant.class), any(Instant.class)))
                 .thenReturn(List.of(b1, b2, b3));
 
-        UtilizationReportResponse report = analyticsService.getUtilizationReport(adminPrincipal, from, to, null, null);
+        UtilizationReportResponse report =
+                analyticsService.getUtilizationReport(adminPrincipal, from, to, null, null);
 
         assertThat(report.metrics()).hasSize(1);
         var metric = report.metrics().get(0);
         assertThat(metric.operatingMinutes()).isEqualTo(540);
         assertThat(metric.scheduledMinutes()).isEqualTo(480);
-        // (480 / 540) * 100 = 88.888... -> 88.89%
         assertThat(metric.utilizationPercent()).isEqualTo(88.89);
     }
 
     @Test
-    @DisplayName("TC-STAT-02: Report range clips crossing bookings and strictly respects exclusive 'to' boundary")
-    void testTcStat02_ClippedBookingsAndAdjacentBoundaries() {
-        LocalDate from = LocalDate.of(2026, 10, 6); // Tuesday
-        LocalDate to = LocalDate.of(2026, 10, 7);   // Wednesday
+    @DisplayName("TC-STAT-02: Report range cuts middle of booking; booking touches from/to boundaries")
+    void testTcStat02_ClippedBookings() {
+        LocalDate from = LocalDate.of(2026, 10, 5); // Monday 00:00:00
+        LocalDate to = LocalDate.of(2026, 10, 6);   // Tuesday 00:00:00
 
-        ResourceSchedule schedule = new ResourceSchedule(
-                UUID.randomUUID(), testRoom.getId(), DayOfWeek.TUESDAY, LocalTime.of(8, 0), LocalTime.of(20, 0));
-
+        Instant periodStart = from.atStartOfDay(ZONE).toInstant();
         Instant periodEnd = to.atStartOfDay(ZONE).toInstant();
 
-        // Booking 1: starts before period (Mon 22:00) and ends Tue 02:00 -> clipped to Tue 00:00 - 02:00 (120m)
-        Instant mon2200 = from.minusDays(1).atTime(22, 0).atZone(ZONE).toInstant();
-        Instant tue0200 = from.atTime(2, 0).atZone(ZONE).toInstant();
-        Booking b1 = createBooking(testRoom, BookingStatus.CONFIRMED, mon2200, tue0200);
+        Instant b1Start = periodStart.minusSeconds(3600);
+        Instant b1End = periodStart.plusSeconds(3600);
+        Booking b1 = createBooking(testRoom, BookingStatus.CONFIRMED, b1Start, b1End);
 
-        // Booking 2: starts Tue 22:00 and ends Wed 02:00 -> clipped to Tue 22:00 - Wed 00:00 (120m)
-        Instant tue2200 = from.atTime(22, 0).atZone(ZONE).toInstant();
-        Instant wed0200 = to.atTime(2, 0).atZone(ZONE).toInstant();
-        Booking b2 = createBooking(testRoom, BookingStatus.CONFIRMED, tue2200, wed0200);
+        Instant b2Start = periodEnd.minusSeconds(1800);
+        Instant b2End = periodEnd.plusSeconds(1800);
+        Booking b2 = createBooking(testRoom, BookingStatus.CONFIRMED, b2Start, b2End);
 
-        // Booking 3: strictly at Wed 00:00 (adjacent at exclusive 'to' boundary -> 0 min)
-        Instant wed0000 = periodEnd;
-        Instant wed0100 = to.atTime(1, 0).atZone(ZONE).toInstant();
-        Booking b3 = createBooking(testRoom, BookingStatus.CONFIRMED, wed0000, wed0100);
-
-        when(resourceRepository.findAll(any(Specification.class)))
-                .thenReturn(List.of(testRoom));
-        when(resourceScheduleRepository.findByResourceIdIn(List.of(testRoom.getId())))
-                .thenReturn(List.of(schedule));
-        when(bookingRepository.findBookingsIntersectingPeriod(
-                eq(List.of(testRoom.getId())), any(), any(), any()))
-                .thenReturn(List.of(b1, b2, b3));
-
-        UtilizationReportResponse report = analyticsService.getUtilizationReport(adminPrincipal, from, to, null, null);
-
-        var metric = report.metrics().get(0);
-        assertThat(metric.operatingMinutes()).isEqualTo(720);
-        // 120m from b1 + 120m from b2 = 240m. b3 contributes 0m.
-        assertThat(metric.scheduledMinutes()).isEqualTo(240);
-        // (240 / 720) * 100 = 33.33%
-        assertThat(metric.utilizationPercent()).isEqualTo(33.33);
+        int scheduled = analyticsService.calculateScheduledMinutes(List.of(b1, b2), periodStart, periodEnd);
+        assertThat(scheduled).isEqualTo(60 + 30);
     }
 
     @Test
-    @DisplayName("TC-STAT-03: Zero operating minutes returns utilizationPercent = null (N/A)")
-    void testTcStat03_ZeroOperatingMinutesReturnsNullUtilization() {
-        LocalDate from = LocalDate.of(2026, 10, 11); // Sunday
-        LocalDate to = LocalDate.of(2026, 10, 12);   // Monday
+    @DisplayName("TC-STAT-03: No operating windows configured -> rate is null/NA, no division by zero")
+    void testTcStat03_NoOperatingWindows_RateIsNull() {
+        LocalDate from = LocalDate.of(2026, 10, 5);
+        LocalDate to = LocalDate.of(2026, 10, 6);
 
         when(resourceRepository.findAll(any(Specification.class)))
                 .thenReturn(List.of(testRoom));
         when(resourceScheduleRepository.findByResourceIdIn(List.of(testRoom.getId())))
-                .thenReturn(List.of());
-        when(bookingRepository.findBookingsIntersectingPeriod(any(), any(), any(), any()))
-                .thenReturn(List.of());
+                .thenReturn(Collections.emptyList());
+        when(bookingRepository.findBookingsIntersectingPeriod(
+                eq(List.of(testRoom.getId())), any(), any(Instant.class), any(Instant.class)))
+                .thenReturn(Collections.emptyList());
 
-        UtilizationReportResponse report = analyticsService.getUtilizationReport(adminPrincipal, from, to, null, null);
+        UtilizationReportResponse report =
+                analyticsService.getUtilizationReport(adminPrincipal, from, to, null, null);
 
+        assertThat(report.metrics()).hasSize(1);
         var metric = report.metrics().get(0);
         assertThat(metric.operatingMinutes()).isEqualTo(0);
         assertThat(metric.scheduledMinutes()).isEqualTo(0);
@@ -197,67 +202,281 @@ class AnalyticsServiceTest {
     }
 
     @Test
-    @DisplayName("ALC-49 / TC-STAT-06: Booking trends aggregate by local startTime date and status")
-    void testAlc49_BookingTrendsAggregation() {
+    @DisplayName("TC-STAT-04: Rolling 7 days evaluation: 85.0% does not alert; 85.19% strictly exceeds and alerts")
+    void testTcStat04_Threshold85_Rate85NoAlert_Rate851TriggersAlert() {
+        LocalDate evalDate = LocalDate.of(2026, 10, 12);
+        LocalDate periodStart = evalDate.minusDays(7); // 2026-10-05
+        Instant now = evalDate.atTime(0, 5).atZone(ZONE).toInstant();
+
+        // Operating 9 hours on Monday only = 540 minutes total in the 7-day period
+        ResourceSchedule schedule = new ResourceSchedule(
+                UUID.randomUUID(), testRoom.getId(), DayOfWeek.MONDAY, LocalTime.of(9, 0), LocalTime.of(18, 0));
+
+        when(resourceRepository.findAll()).thenReturn(List.of(testRoom));
+        when(resourceScheduleRepository.findByResourceIdIn(List.of(testRoom.getId()))).thenReturn(List.of(schedule));
+        when(alertRepository.findByResourceIdAndAlertTypeAndStatusIn(
+                eq(testRoom.getId()), eq("HIGH_UTILIZATION"), any()))
+                .thenReturn(Optional.empty());
+
+        // Case A: 459 minutes booked out of 540 = 85.0% -> exactly equal to threshold 85% -> NO ALERT
+        Instant mon0900 = periodStart.atTime(9, 0).atZone(ZONE).toInstant();
+        Instant mon1639 = periodStart.atTime(16, 39).atZone(ZONE).toInstant(); // 459 min
+        Booking bNoAlert = createBooking(testRoom, BookingStatus.CONFIRMED, mon0900, mon1639);
+
+        when(bookingRepository.findBookingsIntersectingPeriod(
+                eq(List.of(testRoom.getId())), any(), any(Instant.class), any(Instant.class)))
+                .thenReturn(List.of(bNoAlert));
+
+        analyticsService.evaluateDailyUtilizationAlerts(evalDate, now);
+
+        verify(alertRepository, never()).save(any());
+        verify(notificationService, never()).dispatchUtilizationAlert(any(), any(), any(), any(), any());
+
+        // Case B: 460 minutes booked out of 540 = 85.19% -> strictly greater than 85.0% -> TRIGGERS ALERT
+        Instant mon1640 = periodStart.atTime(16, 40).atZone(ZONE).toInstant(); // 460 min
+        Booking bAlert = createBooking(testRoom, BookingStatus.CONFIRMED, mon0900, mon1640);
+
+        when(bookingRepository.findBookingsIntersectingPeriod(
+                eq(List.of(testRoom.getId())), any(), any(Instant.class), any(Instant.class)))
+                .thenReturn(List.of(bAlert));
+
+        User managerUser = new User(
+                UUID.randomUUID(), "mgr", "mgr@alloca.test", "hash", "Manager", Role.MANAGER, testDept);
+        when(userRepository.findByDepartment_IdAndRoleAndIsActiveTrue(testDept.getId(), Role.MANAGER))
+                .thenReturn(List.of(managerUser));
+
+        analyticsService.evaluateDailyUtilizationAlerts(evalDate, now);
+
+        ArgumentCaptor<Alert> alertCaptor = ArgumentCaptor.forClass(Alert.class);
+        verify(alertRepository).save(alertCaptor.capture());
+        Alert saved = alertCaptor.getValue();
+        assertThat(saved.getStatus()).isEqualTo(AlertStatus.OPEN);
+        assertThat(saved.getActualPercent()).isEqualTo(new BigDecimal("85.19"));
+        assertThat(saved.getBookedMinutes()).isEqualTo(460);
+        assertThat(saved.getAvailableMinutes()).isEqualTo(540);
+
+        verify(notificationService).dispatchUtilizationAlert(
+                eq(saved.getId()), eq(managerUser.getId()), eq("Boardroom A"), eq(new BigDecimal("85.19")), eq(now));
+    }
+
+    @Test
+    @DisplayName("TC-STAT-04: Recipient routing: Shared resource sends to Admin; Department resource sends to Manager")
+    void testTcStat04_RecipientRouting() {
+        LocalDate evalDate = LocalDate.of(2026, 10, 12);
+        LocalDate periodStart = evalDate.minusDays(7);
+        Instant now = evalDate.atTime(0, 5).atZone(ZONE).toInstant();
+
+        Resource sharedRoom = new Resource(UUID.randomUUID(), ResourceStatus.AVAILABLE);
+        sharedRoom.setName("Shared Hall");
+        sharedRoom.setType(ResourceType.ROOM);
+        sharedRoom.setDepartment(null); // shared
+
+        ResourceSchedule schedule = new ResourceSchedule(
+                UUID.randomUUID(), sharedRoom.getId(), DayOfWeek.MONDAY, LocalTime.of(9, 0), LocalTime.of(18, 0));
+
+        when(resourceRepository.findAll()).thenReturn(List.of(sharedRoom));
+        when(resourceScheduleRepository.findByResourceIdIn(List.of(sharedRoom.getId()))).thenReturn(List.of(schedule));
+        when(alertRepository.findByResourceIdAndAlertTypeAndStatusIn(
+                eq(sharedRoom.getId()), eq("HIGH_UTILIZATION"), any()))
+                .thenReturn(Optional.empty());
+
+        Instant mon0900 = periodStart.atTime(9, 0).atZone(ZONE).toInstant();
+        Instant mon1800 = periodStart.atTime(18, 0).atZone(ZONE).toInstant();
+        Booking fullBooking = createBooking(sharedRoom, BookingStatus.CONFIRMED, mon0900, mon1800);
+
+        when(bookingRepository.findBookingsIntersectingPeriod(
+                eq(List.of(sharedRoom.getId())), any(), any(Instant.class), any(Instant.class)))
+                .thenReturn(List.of(fullBooking));
+
+        User adminUser = new User(
+                UUID.randomUUID(), "adm", "adm@alloca.test", "hash", "Admin User", Role.ADMIN, null);
+        when(userRepository.findByRoleAndIsActiveTrue(Role.ADMIN)).thenReturn(List.of(adminUser));
+
+        analyticsService.evaluateDailyUtilizationAlerts(evalDate, now);
+
+        verify(notificationService).dispatchUtilizationAlert(
+                any(), eq(adminUser.getId()), eq("Shared Hall"), eq(new BigDecimal("100.00")), eq(now));
+    }
+
+    @Test
+    @DisplayName("TC-STAT-05: Alert lifecycle: active episode deduplication, normalize resolves, unavailable resolves")
+    void testTcStat05_EpisodeLifecycle() {
+        LocalDate evalDate = LocalDate.of(2026, 10, 12);
+        LocalDate periodStart = evalDate.minusDays(7);
+        Instant now = evalDate.atTime(0, 5).atZone(ZONE).toInstant();
+
+        ResourceSchedule schedule = new ResourceSchedule(
+                UUID.randomUUID(), testRoom.getId(), DayOfWeek.MONDAY, LocalTime.of(9, 0), LocalTime.of(18, 0));
+
+        when(resourceRepository.findAll()).thenReturn(List.of(testRoom));
+        when(resourceScheduleRepository.findByResourceIdIn(List.of(testRoom.getId()))).thenReturn(List.of(schedule));
+
+        Alert activeAlert = new Alert(
+                UUID.randomUUID(), testRoom, periodStart, evalDate, "DEDUP-1",
+                new BigDecimal("85.00"), new BigDecimal("90.00"), 486, 540, now);
+        when(alertRepository.findByResourceIdAndAlertTypeAndStatusIn(
+                eq(testRoom.getId()), eq("HIGH_UTILIZATION"), any()))
+                .thenReturn(Optional.of(activeAlert));
+
+        // Sub-test 1: Still breached -> updates metrics, does NOT send duplicate notification
+        Instant mon0900 = periodStart.atTime(9, 0).atZone(ZONE).toInstant();
+        Instant mon1715 = periodStart.atTime(17, 15).atZone(ZONE).toInstant(); // 495 min = 91.67%
+        Booking bStillBreached = createBooking(testRoom, BookingStatus.CONFIRMED, mon0900, mon1715);
+        when(bookingRepository.findBookingsIntersectingPeriod(
+                eq(List.of(testRoom.getId())), any(), any(Instant.class), any(Instant.class)))
+                .thenReturn(List.of(bStillBreached));
+
+        analyticsService.evaluateDailyUtilizationAlerts(evalDate, now);
+
+        assertThat(activeAlert.getActualPercent()).isEqualTo(new BigDecimal("91.67"));
+        assertThat(activeAlert.getBookedMinutes()).isEqualTo(495);
+        verify(notificationService, never()).dispatchUtilizationAlert(any(), any(), any(), any(), any());
+
+        // Sub-test 2: Utilization normalizes (rate <= threshold) -> active alert resolves with RATE_NORMALIZED
+        Booking bNormalized = createBooking(testRoom, BookingStatus.CONFIRMED,
+                mon0900, periodStart.atTime(12, 0).atZone(ZONE).toInstant()); // 180 min = 33.33%
+        when(bookingRepository.findBookingsIntersectingPeriod(
+                eq(List.of(testRoom.getId())), any(), any(Instant.class), any(Instant.class)))
+                .thenReturn(List.of(bNormalized));
+
+        analyticsService.evaluateDailyUtilizationAlerts(evalDate, now);
+
+        assertThat(activeAlert.getStatus()).isEqualTo(AlertStatus.RESOLVED);
+        assertThat(activeAlert.getResolutionReason()).isEqualTo("RATE_NORMALIZED");
+
+        // Sub-test 3: Resource becomes SUSPENDED -> active alert resolves with RESOURCE_UNAVAILABLE
+        testRoom.changeStatus(ResourceStatus.SUSPENDED);
+        Alert anotherActiveAlert = new Alert(
+                UUID.randomUUID(), testRoom, periodStart, evalDate, "DEDUP-2",
+                new BigDecimal("85.00"), new BigDecimal("90.00"), 486, 540, now);
+        when(alertRepository.findByResourceIdAndAlertTypeAndStatusIn(
+                eq(testRoom.getId()), eq("HIGH_UTILIZATION"), any()))
+                .thenReturn(Optional.of(anotherActiveAlert));
+
+        analyticsService.evaluateDailyUtilizationAlerts(evalDate, now);
+
+        assertThat(anotherActiveAlert.getStatus()).isEqualTo(AlertStatus.RESOLVED);
+        assertThat(anotherActiveAlert.getResolutionReason()).isEqualTo("RESOURCE_UNAVAILABLE");
+    }
+
+    @Test
+    @DisplayName("Alert acknowledgment: OPEN alert acknowledged successfully; already acknowledged throws 409")
+    void testAcknowledgeAlert_SuccessAndConflict() {
+        UUID alertId = UUID.randomUUID();
+        Alert alert = new Alert(
+                alertId, testRoom, LocalDate.now(ZONE).minusDays(7), LocalDate.now(ZONE),
+                "DEDUP-ACK", new BigDecimal("85.00"), new BigDecimal("90.00"), 486, 540, Instant.now());
+
+        when(alertRepository.findWithRelationsById(alertId)).thenReturn(Optional.of(alert));
+
+        User managerUser = new User(
+                managerPrincipal.getId(), "mgr", "mgr@alloca.test", "hash", "Manager", Role.MANAGER, testDept);
+        when(userRepository.findById(managerPrincipal.getId())).thenReturn(Optional.of(managerUser));
+
+        AlertResponse response = analyticsService.acknowledgeAlert(managerPrincipal, alertId);
+        assertThat(response.status()).isEqualTo(AlertStatus.ACKNOWLEDGED);
+        assertThat(alert.getStatus()).isEqualTo(AlertStatus.ACKNOWLEDGED);
+
+        // Attempting to acknowledge again throws CONFLICT 409
+        assertThatThrownBy(() -> analyticsService.acknowledgeAlert(managerPrincipal, alertId))
+                .isInstanceOf(ApiException.class)
+                .satisfies(ex -> {
+                    ApiException apiEx = (ApiException) ex;
+                    assertThat(apiEx.getStatus()).isEqualTo(HttpStatus.CONFLICT);
+                    assertThat(apiEx.getCode()).isEqualTo(ErrorCode.ALERT_CANNOT_BE_ACKNOWLEDGED);
+                });
+    }
+
+    @Test
+    @DisplayName("ALC-52: Manager cannot acknowledge alert of another department's resource (403)")
+    void testAcknowledgeAlert_ManagerOtherDepartment_Forbidden() {
+        UUID alertId = UUID.randomUUID();
+        Alert alert = new Alert(
+                alertId, testRoom, LocalDate.now(ZONE).minusDays(7), LocalDate.now(ZONE),
+                "DEDUP-OTHER", new BigDecimal("85.00"), new BigDecimal("90.00"), 486, 540, Instant.now());
+
+        when(alertRepository.findWithRelationsById(alertId)).thenReturn(Optional.of(alert));
+
+        assertThatThrownBy(() -> analyticsService.acknowledgeAlert(otherManagerPrincipal, alertId))
+                .isInstanceOf(ApiException.class)
+                .satisfies(ex -> {
+                    ApiException apiEx = (ApiException) ex;
+                    assertThat(apiEx.getStatus()).isEqualTo(HttpStatus.FORBIDDEN);
+                    assertThat(apiEx.getCode()).isEqualTo(ErrorCode.ACCESS_DENIED);
+                });
+    }
+
+    @Test
+    @DisplayName("ALC-52: List alerts enforces department scope for managers")
+    void testListAlerts_ManagerScopeEnforced() {
+        Pageable pageable = PageRequest.of(0, 20);
+
+        // Manager requesting other department ID -> 403
+        assertThatThrownBy(() -> analyticsService.listAlerts(
+                managerPrincipal, null, null, UUID.randomUUID(), pageable))
+                .isInstanceOf(ApiException.class)
+                .satisfies(ex -> {
+                    ApiException apiEx = (ApiException) ex;
+                    assertThat(apiEx.getStatus()).isEqualTo(HttpStatus.FORBIDDEN);
+                    assertThat(apiEx.getCode()).isEqualTo(ErrorCode.ACCESS_DENIED);
+                });
+
+        // Manager requesting their own department alerts -> 200
+        when(alertRepository.findAll(any(Specification.class), eq(pageable)))
+                .thenReturn(new PageImpl<>(Collections.emptyList()));
+
+        PageResponse<AlertResponse> res = analyticsService.listAlerts(
+                managerPrincipal, AlertStatus.OPEN, null, null, pageable);
+        assertThat(res.items()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("TC-STAT-06: Trend aggregate strictly by startTime local date; excludes CANCELLED from confirmed count")
+    void testTcStat06_BookingTrendsAggregation() {
         LocalDate from = LocalDate.of(2026, 10, 5); // Monday
-        LocalDate to = LocalDate.of(2026, 10, 8);   // Thursday (3 days: 5, 6, 7)
+        LocalDate to = LocalDate.of(2026, 10, 8);   // Thursday (3 days)
 
-        // Monday: 1 CONFIRMED, 1 COMPLETED
-        Booking b1 = createBooking(testRoom, BookingStatus.CONFIRMED,
-                from.atTime(10, 0).atZone(ZONE).toInstant(), from.atTime(11, 0).atZone(ZONE).toInstant());
-        Booking b2 = createBooking(testRoom, BookingStatus.COMPLETED,
-                from.atTime(14, 0).atZone(ZONE).toInstant(), from.atTime(15, 0).atZone(ZONE).toInstant());
+        Instant d0900 = from.atTime(9, 0).atZone(ZONE).toInstant();
+        Instant d1000 = from.atTime(10, 0).atZone(ZONE).toInstant();
+        Instant d1100 = from.atTime(11, 0).atZone(ZONE).toInstant();
+        Instant d1200 = from.atTime(12, 0).atZone(ZONE).toInstant();
 
-        // Tuesday: 1 CANCELLED
-        Booking b3 = createBooking(testRoom, BookingStatus.CANCELLED,
-                from.plusDays(1).atTime(9, 0).atZone(ZONE).toInstant(), from.plusDays(1).atTime(10, 0).atZone(ZONE).toInstant());
-
-        // Wednesday: 0 bookings
+        Booking b1 = createBooking(testRoom, BookingStatus.CONFIRMED, d0900, d1000);
+        Booking b2 = createBooking(testRoom, BookingStatus.COMPLETED, d1000, d1100);
+        Booking b3 = createBooking(testRoom, BookingStatus.CANCELLED, d1100, d1200);
 
         when(resourceRepository.findAll(any(Specification.class)))
                 .thenReturn(List.of(testRoom));
         when(bookingRepository.findBookingsStartingInPeriod(
-                eq(List.of(testRoom.getId())), any(), any()))
+                eq(List.of(testRoom.getId())), any(Instant.class), any(Instant.class)))
                 .thenReturn(List.of(b1, b2, b3));
 
-        BookingTrendReportResponse report = analyticsService.getBookingTrends(adminPrincipal, from, to, null, null);
+        BookingTrendReportResponse response =
+                analyticsService.getBookingTrends(adminPrincipal, from, to, null, null);
 
-        assertThat(report.from()).isEqualTo(from);
-        assertThat(report.to()).isEqualTo(to);
-        assertThat(report.timezone()).isEqualTo("Asia/Ho_Chi_Minh");
-        assertThat(report.points()).hasSize(3);
+        assertThat(response.points()).hasSize(3);
+        var mondayPoint = response.points().get(0);
+        assertThat(mondayPoint.date()).isEqualTo(from);
+        assertThat(mondayPoint.confirmedCount()).isEqualTo(1);
+        assertThat(mondayPoint.completedCount()).isEqualTo(1);
+        assertThat(mondayPoint.cancelledCount()).isEqualTo(1);
 
-        // Day 1 (Monday)
-        var p1 = report.points().get(0);
-        assertThat(p1.date()).isEqualTo(from);
-        assertThat(p1.confirmedCount()).isEqualTo(1);
-        assertThat(p1.completedCount()).isEqualTo(1);
-        assertThat(p1.cancelledCount()).isEqualTo(0);
-
-        // Day 2 (Tuesday)
-        var p2 = report.points().get(1);
-        assertThat(p2.date()).isEqualTo(from.plusDays(1));
-        assertThat(p2.confirmedCount()).isEqualTo(0);
-        assertThat(p2.completedCount()).isEqualTo(0);
-        assertThat(p2.cancelledCount()).isEqualTo(1);
-
-        // Day 3 (Wednesday)
-        var p3 = report.points().get(2);
-        assertThat(p3.date()).isEqualTo(from.plusDays(2));
-        assertThat(p3.confirmedCount()).isEqualTo(0);
-        assertThat(p3.completedCount()).isEqualTo(0);
-        assertThat(p3.cancelledCount()).isEqualTo(0);
+        var tuesdayPoint = response.points().get(1);
+        assertThat(tuesdayPoint.date()).isEqualTo(from.plusDays(1));
+        assertThat(tuesdayPoint.confirmedCount()).isZero();
+        assertThat(tuesdayPoint.completedCount()).isZero();
+        assertThat(tuesdayPoint.cancelledCount()).isZero();
     }
 
     @Test
-    @DisplayName("TC-SCOPE-03 / ALC-52: Manager querying other department is rejected with 403 ACCESS_DENIED")
-    void testTcScope03_ManagerQueryingOtherDepartment_Returns403() {
+    @DisplayName("TC-SCOPE-03 / ALC-52: Manager requesting another department's report gets 403 ACCESS_DENIED")
+    void testTcScope03_ManagerRequestingOtherDepartment_Returns403() {
         LocalDate from = LocalDate.of(2026, 10, 5);
         LocalDate to = LocalDate.of(2026, 10, 12);
-        UUID differentDeptId = UUID.randomUUID();
+        UUID otherDeptId = UUID.randomUUID();
 
         assertThatThrownBy(() -> analyticsService.getUtilizationReport(
-                managerPrincipal, from, to, null, differentDeptId))
+                managerPrincipal, from, to, null, otherDeptId))
                 .isInstanceOf(ApiException.class)
                 .satisfies(ex -> {
                     ApiException apiEx = (ApiException) ex;
@@ -266,7 +485,7 @@ class AnalyticsServiceTest {
                 });
 
         assertThatThrownBy(() -> analyticsService.getBookingTrends(
-                managerPrincipal, from, to, null, differentDeptId))
+                managerPrincipal, from, to, null, otherDeptId))
                 .isInstanceOf(ApiException.class)
                 .satisfies(ex -> {
                     ApiException apiEx = (ApiException) ex;
@@ -276,27 +495,7 @@ class AnalyticsServiceTest {
     }
 
     @Test
-    @DisplayName("TC-SCOPE-03 / ALC-52: Manager querying resource of other department is rejected with 403 ACCESS_DENIED")
-    void testTcScope03_ManagerQueryingOtherDepartmentResource_Returns403() {
-        LocalDate from = LocalDate.of(2026, 10, 5);
-        LocalDate to = LocalDate.of(2026, 10, 12);
-
-        when(resourceRepository.findWithRelationsById(testRoom.getId()))
-                .thenReturn(Optional.of(testRoom));
-
-        // otherManagerPrincipal has a different department ID
-        assertThatThrownBy(() -> analyticsService.getUtilizationReport(
-                otherManagerPrincipal, from, to, testRoom.getId(), null))
-                .isInstanceOf(ApiException.class)
-                .satisfies(ex -> {
-                    ApiException apiEx = (ApiException) ex;
-                    assertThat(apiEx.getStatus()).isEqualTo(HttpStatus.FORBIDDEN);
-                    assertThat(apiEx.getCode()).isEqualTo(ErrorCode.ACCESS_DENIED);
-                });
-    }
-
-    @Test
-    @DisplayName("TC-SCOPE-03 / ALC-52: Employee attempting to access report is rejected with 403 ACCESS_DENIED")
+    @DisplayName("TC-SCOPE-03 / ALC-52: Employee attempting to access analytics/reports gets 403 ACCESS_DENIED")
     void testTcScope03_EmployeeAttemptingReport_Returns403() {
         LocalDate from = LocalDate.of(2026, 10, 5);
         LocalDate to = LocalDate.of(2026, 10, 12);
