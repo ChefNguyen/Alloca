@@ -5,7 +5,9 @@ import com.alloca.booking.domain.Booking;
 import com.alloca.notification.domain.NotificationType;
 import com.alloca.notification.repository.NotificationRepository;
 import com.github.f4b6a3.uuid.UuidCreator;
+import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,5 +51,21 @@ public class NotificationService {
         notificationRepository.insertBookingNotification(
                 UuidCreator.getTimeOrderedEpoch(), recipient.getId(), booking.getId(),
                 type.name(), dedupKey, title, message, now);
+    }
+
+    public void dispatchUtilizationAlert(UUID alertId, UUID recipientUserId, String resourceName, BigDecimal rate, Instant now) {
+        String dedupKey = NotificationType.UTILIZATION_ALERT.name() + ":" + alertId + ":" + recipientUserId;
+        String title = "Cảnh báo vượt ngưỡng sử dụng: " + resourceName;
+        String message = String.format("Tài nguyên %s có tỷ lệ sử dụng đạt %.1f%% trong 7 ngày qua, vượt ngưỡng quy định.",
+                resourceName, rate != null ? rate.doubleValue() : 0.0);
+        notificationRepository.insertAlertNotification(
+                UuidCreator.getTimeOrderedEpoch(),
+                recipientUserId,
+                alertId,
+                NotificationType.UTILIZATION_ALERT.name(),
+                dedupKey,
+                title,
+                message,
+                now);
     }
 }

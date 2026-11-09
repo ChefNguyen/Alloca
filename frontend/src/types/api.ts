@@ -155,6 +155,13 @@ export interface BookingTrendPoint {
   cancelledCount: number;
 }
 
+export interface BookingTrendReport {
+  from: string;
+  to: string;
+  timezone: 'Asia/Ho_Chi_Minh';
+  points: BookingTrendPoint[];
+}
+
 export interface UtilizationAlert {
   id: string;
   resource: Resource;
