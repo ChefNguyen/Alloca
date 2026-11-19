@@ -10,6 +10,7 @@ import { ResourceDetail } from '@/pages/ResourceDetail';
 import { MyBookings } from '@/pages/MyBookings';
 import { Analytics } from '@/pages/Analytics';
 import { Administration } from '@/pages/Administration';
+import { Profile } from '@/pages/Profile';
 
 // Role-protected route wrapper
 const RoleRoute: React.FC<{
@@ -45,6 +46,7 @@ export const AppRoutes: React.FC = () => {
         <Route index element={<Dashboard />} />
         <Route path="find-resource" element={<FindResource />} />
         <Route path="resources/:id" element={<ResourceDetail />} />
+        <Route path="profile" element={<Profile />} />
         <Route path="my-bookings" element={<MyBookings />} />
 
         {/* Manager & Admin Only */}

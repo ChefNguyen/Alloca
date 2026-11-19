@@ -46,3 +46,24 @@ export const logout = async (): Promise<void> => {
   // Only the server can delete an HttpOnly cookie. Propagate failures for retry.
   await apiRequest<void>('/api/v1/auth/logout', { method: 'POST' });
 };
+
+export const updateProfile = async (changes: { fullName?: string; email?: string }): Promise<User> => {
+  const version = getSessionVersion();
+  const updated = toUser(
+    await apiRequest<UserResponse>('/api/v1/auth/me', {
+      method: 'PATCH',
+      body: JSON.stringify(changes),
+    }),
+  );
+  const session = loadSession();
+  if (session && getSessionVersion() === version) {
+    saveSession({ ...session, user: updated });
+  }
+  return updated;
+};
+
+export const changePassword = (currentPassword: string, newPassword: string): Promise<void> =>
+  apiRequest<void>('/api/v1/auth/change-password', {
+    method: 'POST',
+    body: JSON.stringify({ currentPassword, newPassword }),
+  });

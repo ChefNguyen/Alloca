@@ -389,8 +389,8 @@ export const Dashboard: React.FC = () => {
               </div>
             </div>
 
-            {/* 2-Column Resource Card Grid: Subtle border, clean typography */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 flex-1 content-start py-1">
+            {/* Responsive Resource Card Grid: auto-fit prevents column overlap on medium screens */}
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3 flex-1 content-start py-1">
               {filteredResources.map((resource) => {
                 const isSelected = selectedSpaceId === resource.id;
                 const badge = getStatusBadge(resource.status);
@@ -400,7 +400,7 @@ export const Dashboard: React.FC = () => {
                   <div
                     key={resource.id}
                     onClick={() => setSelectedSpaceId(resource.id)}
-                    className={`p-4 min-w-[280px] min-h-[145px] rounded-[8px] bg-white transition-all duration-150 flex flex-col justify-between border cursor-pointer ${
+                    className={`p-4 min-w-0 min-h-[145px] rounded-[8px] bg-white transition-all duration-150 flex flex-col justify-between border cursor-pointer ${
                       isSelected
                         ? 'border-[#242424] ring-1 ring-[#242424] shadow-sm'
                         : 'border-[#E5E0D8]/80 hover:border-[#C5C0B8] hover:shadow-xs'

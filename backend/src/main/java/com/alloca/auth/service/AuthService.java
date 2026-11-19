@@ -8,14 +8,20 @@ import com.alloca.auth.dto.LoginResponse;
 import com.alloca.auth.dto.DepartmentSummaryResponse;
 import com.alloca.auth.dto.UserResponse;
 import com.alloca.auth.domain.User;
+import com.alloca.auth.dto.ChangePasswordRequest;
 import com.alloca.auth.dto.LoginRequest;
 import com.alloca.auth.dto.AccessTokenResponse;
+import com.alloca.auth.dto.ProfileUpdateRequest;
 import com.alloca.auth.dto.RefreshTokenRequest;
 import com.alloca.auth.repository.UserRepository;
+import com.alloca.common.exception.ApiException;
+import com.alloca.common.exception.ErrorCode;
 
 import java.text.ParseException;
+import java.time.Instant;
 import java.util.UUID;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.authentication.BadCredentialsException;
 import com.alloca.auth.exception.InvalidTokenException;
 import lombok.RequiredArgsConstructor;
@@ -129,6 +135,67 @@ public class AuthService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new InvalidTokenException("Authenticated user no longer exists"));
 
+        return toUserResponse(user);
+    }
+
+    /**
+     * ALC-28: Cập nhật hồ sơ cá nhân (chỉ cho phép fullName và email; không thể tự đổi role/department/isActive).
+     */
+    @Transactional
+    public UserResponse updateCurrentUser(UUID userId, ProfileUpdateRequest request) {
+        if (request.fullName() == null && request.email() == null) {
+            throw ApiException.invalidField("body", "At least one of fullName or email is required");
+        }
+        String fullName = request.fullName() == null ? null : request.fullName().trim();
+        if (fullName != null && fullName.isEmpty()) {
+            throw ApiException.invalidField("fullName", "Full name must not be blank");
+        }
+        String email = request.email() == null ? null : request.email().trim().toLowerCase();
+
+        User user = userRepository.findById(userId)
+                .filter(User::isActive)
+                .orElseThrow(() -> new InvalidTokenException("Authenticated user no longer exists"));
+
+        if (email != null && userRepository.existsByEmailIgnoreCaseAndIdNot(email, userId)) {
+            throw ApiException.conflict(ErrorCode.EMAIL_ALREADY_EXISTS, "Email is already in use");
+        }
+        if (fullName != null) {
+            user.setFullname(fullName);
+        }
+        if (email != null) {
+            user.setEmail(email);
+        }
+        user.setUpdatedAt(Instant.now());
+
+        try {
+            userRepository.saveAndFlush(user);
+        } catch (DataIntegrityViolationException ex) {
+            throw ApiException.conflict(ErrorCode.EMAIL_ALREADY_EXISTS, "Email is already in use");
+        }
+        return toUserResponse(user);
+    }
+
+    /**
+     * ALC-28: Đổi mật khẩu của người dùng hiện tại và tăng credentials_version để vô hiệu refresh token cũ.
+     */
+    @Transactional
+    public void changePassword(UUID userId, ChangePasswordRequest request) {
+        User user = userRepository.findById(userId)
+                .filter(User::isActive)
+                .orElseThrow(() -> new InvalidTokenException("Authenticated user no longer exists"));
+
+        if (!passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {
+            throw ApiException.invalidField("currentPassword", "Current password is incorrect");
+        }
+        if (request.currentPassword().equals(request.newPassword())) {
+            throw ApiException.invalidField("newPassword", "New password must differ from current password");
+        }
+        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        user.incrementCredentialsVersion();
+        userRepository.save(user);
+    }
+
+    private static UserResponse toUserResponse(User user) {
         DepartmentSummaryResponse deptResponse = user.getDepartment() != null
                 ? new DepartmentSummaryResponse(user.getDepartment().getId(), user.getDepartment().getName())
                 : null;

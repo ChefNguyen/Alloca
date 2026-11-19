@@ -24,6 +24,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     Optional<User> findById(UUID id);
     boolean existsByUsername(String username);
     boolean existsByEmail(String email);
+    boolean existsByEmailIgnoreCaseAndIdNot(String email, UUID id);
 
     /**
      * ALC-26: Tìm kiếm người dùng có phân trang theo phòng ban, role, trạng thái active và từ khóa tìm kiếm q.
