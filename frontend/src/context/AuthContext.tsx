@@ -1,7 +1,13 @@
 import React, { createContext, useCallback, useContext, useEffect, useState, useSyncExternalStore } from 'react';
 import type { Role, User } from '@/types/api';
 import { loadSession, subscribeSession, removeLegacySession } from '@/lib/authStorage';
-import { login as loginRequest, logout as logoutRequest, restoreSession } from '@/services/authApi';
+import {
+  changePassword as changePasswordRequest,
+  login as loginRequest,
+  logout as logoutRequest,
+  restoreSession,
+  updateProfile as updateProfileRequest,
+} from '@/services/authApi';
 
 interface AuthContextType {
   user: User | null;
@@ -9,6 +15,8 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
+  updateProfile: (changes: Pick<User, 'fullName' | 'email'>) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   unreadCount: number;
   setUnreadCount: React.Dispatch<React.SetStateAction<number>>;
 }
@@ -32,6 +40,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     logoutRequest()
       .catch(() => setSessionError('logout'))
       .finally(() => setInitializing(false));
+  }, []);
+
+  const updateProfile = useCallback(async (changes: Pick<User, 'fullName' | 'email'>) => {
+    await updateProfileRequest(changes);
+  }, []);
+
+  const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
+    await changePasswordRequest(currentPassword, newPassword);
   }, []);
 
   const retryRestore = () => {
@@ -62,7 +78,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   return (
     <AuthContext.Provider value={{ user, role: user?.role ?? 'EMPLOYEE', isAuthenticated: !!user,
-      login, logout, unreadCount, setUnreadCount }}>
+      login, logout, updateProfile, changePassword, unreadCount, setUnreadCount }}>
       {children}
     </AuthContext.Provider>
   );

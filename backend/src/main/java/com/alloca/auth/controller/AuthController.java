@@ -11,12 +11,15 @@ import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.http.HttpHeaders;
 import lombok.RequiredArgsConstructor;
 
+import com.alloca.auth.dto.ChangePasswordRequest;
 import com.alloca.auth.dto.LoginRequest;
 import com.alloca.auth.dto.LoginResponse;
 import com.alloca.auth.dto.AccessTokenResponse;
+import com.alloca.auth.dto.ProfileUpdateRequest;
 import com.alloca.auth.dto.RefreshTokenRequest;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -81,5 +84,24 @@ public class AuthController {
     public ResponseEntity<UserResponse> getCurrentUser(@AuthenticationPrincipal UserPrincipal principal) {
         UserResponse response = authService.getCurrentUser(principal.getId());
         return ResponseEntity.ok(response);
+    }
+
+    /** ALC-28: Self-service profile update (fullName, email only). */
+    @PatchMapping("/me")
+    public ResponseEntity<UserResponse> updateCurrentUser(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @Valid @RequestBody ProfileUpdateRequest request) {
+        return ResponseEntity.ok(authService.updateCurrentUser(principal.getId(), request));
+    }
+
+    /** ALC-28: Self-service password change; invalidates prior refresh tokens via credentials_version. */
+    @PostMapping("/change-password")
+    public ResponseEntity<Void> changePassword(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @Valid @RequestBody ChangePasswordRequest request) {
+        authService.changePassword(principal.getId(), request);
+        return ResponseEntity.noContent()
+                .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                .build();
     }
 }

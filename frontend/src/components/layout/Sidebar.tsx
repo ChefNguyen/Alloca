@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useSidebar } from '@/context/SidebarContext';
 import { mockNotifications } from '@/mock/data';
@@ -7,6 +7,7 @@ import { mockNotifications } from '@/mock/data';
 export const Sidebar: React.FC = () => {
   const { user, role, logout, unreadCount, setUnreadCount } = useAuth();
   const { isExpanded, toggleCollapse } = useSidebar();
+  const navigate = useNavigate();
 
   const [showNotifications, setShowNotifications] = useState<boolean>(false);
   const [showProfileMenu, setShowProfileMenu] = useState<boolean>(false);
@@ -327,6 +328,15 @@ export const Sidebar: React.FC = () => {
                   </div>
 
                   <div>
+                    <button
+                      onClick={() => {
+                        setShowProfileMenu(false);
+                        navigate('/profile');
+                      }}
+                      className="w-full text-left px-2.5 py-1.5 rounded-[4px] text-xs font-medium text-[#242424] hover:bg-[#F3F2EF] transition-colors cursor-pointer"
+                    >
+                      My Profile
+                    </button>
                     <button
                       onClick={logout}
                       className="w-full text-left px-2.5 py-1.5 rounded-[4px] text-xs font-medium text-[#D97757] hover:bg-[#F3F2EF] transition-colors cursor-pointer"

@@ -3,12 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { mockResources } from '@/mock/data';
 import { BookingModal } from '@/components/booking/BookingModal';
 import { ApiError } from '@/lib/api';
-import { listResources, Page } from '@/services/resourceApi';
-import { Resource, ResourceType } from '@/types/api';
+import { listResources, listZones, Page } from '@/services/resourceApi';
+import { Resource, ResourceStatus, ResourceType, Zone } from '@/types/api';
 
 const PAGE_SIZE = 10;
 
 type TypeFilter = 'ALL' | ResourceType;
+type StatusFilter = 'ALL' | Exclude<ResourceStatus, 'DELETED'>;
 
 // The page and filter a response belongs to; while it differs from the current one, the list is loading.
 interface ListResult {
@@ -27,13 +28,38 @@ export const FindResource: React.FC = () => {
   const [zoomLevel, setZoomLevel] = useState<number>(1);
   const [isBookingOpen, setIsBookingOpen] = useState<boolean>(false);
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('ALL');
+  const [zoneFilter, setZoneFilter] = useState<string>('ALL');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
+  const [zones, setZones] = useState<Zone[]>([]);
   const [pageNumber, setPageNumber] = useState(0);
   const [listResult, setListResult] = useState<ListResult | null>(null);
 
   const selectedResource =
     mockResources.find((r) => r.id === selectedResourceId) || mockResources[0];
 
-  const listKey = `${typeFilter}:${pageNumber}`;
+  const hasActiveFilter = typeFilter !== 'ALL' || zoneFilter !== 'ALL' || statusFilter !== 'ALL';
+  const resetFilters = () => {
+    setTypeFilter('ALL');
+    setZoneFilter('ALL');
+    setStatusFilter('ALL');
+    setPageNumber(0);
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    listZones()
+      .then((loaded) => {
+        if (!cancelled) setZones(loaded);
+      })
+      .catch(() => {
+        if (!cancelled) setZones([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const listKey = `${typeFilter}:${zoneFilter}:${statusFilter}:${pageNumber}`;
   const listLoading = listResult?.key !== listKey;
   const page = listLoading ? null : listResult.page;
   const listError = listLoading ? null : listResult.error;
@@ -41,12 +67,14 @@ export const FindResource: React.FC = () => {
 
   useEffect(() => {
     let cancelled = false;
-    const key = `${typeFilter}:${pageNumber}`;
+    const key = `${typeFilter}:${zoneFilter}:${statusFilter}:${pageNumber}`;
     listResources({
       page: pageNumber,
       size: PAGE_SIZE,
       sort: 'name,asc',
       type: typeFilter === 'ALL' ? undefined : typeFilter,
+      zoneId: zoneFilter === 'ALL' ? undefined : zoneFilter,
+      status: statusFilter === 'ALL' ? undefined : statusFilter,
     })
       .then((loaded) => {
         if (!cancelled) setListResult({ key, page: loaded, error: null });
@@ -59,7 +87,7 @@ export const FindResource: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [typeFilter, pageNumber]);
+  }, [typeFilter, zoneFilter, statusFilter, pageNumber]);
 
   return (
     <div className="flex flex-col w-full p-6 lg:p-8 space-y-6 bg-[#F0EDE8] min-h-screen">
@@ -342,19 +370,63 @@ export const FindResource: React.FC = () => {
               <h2 className="text-base font-bold text-[#242424] font-editorial">Tabular Directory</h2>
             </div>
 
-            <select
-              value={typeFilter}
-              onChange={(e) => {
-                setTypeFilter(e.target.value as TypeFilter);
-                setPageNumber(0);
-              }}
-              className="h-9 px-3 rounded-[6px] bg-[#F0EDE8]/60 text-xs font-semibold border-0 text-[#242424]"
-            >
-              <option value="ALL">All Spaces</option>
-              <option value="ROOM">Meeting Rooms</option>
-              <option value="DESK">Desks</option>
-              <option value="EQUIPMENT">Equipment</option>
-            </select>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                aria-label="Filter by type"
+                value={typeFilter}
+                onChange={(e) => {
+                  setTypeFilter(e.target.value as TypeFilter);
+                  setPageNumber(0);
+                }}
+                className="h-9 px-3 rounded-[6px] bg-[#F0EDE8]/60 text-xs font-semibold border-0 text-[#242424] cursor-pointer"
+              >
+                <option value="ALL">All Types</option>
+                <option value="ROOM">Meeting Rooms</option>
+                <option value="DESK">Desks</option>
+                <option value="EQUIPMENT">Equipment</option>
+              </select>
+
+              <select
+                aria-label="Filter by zone"
+                value={zoneFilter}
+                onChange={(e) => {
+                  setZoneFilter(e.target.value);
+                  setPageNumber(0);
+                }}
+                className="h-9 px-3 rounded-[6px] bg-[#F0EDE8]/60 text-xs font-semibold border-0 text-[#242424] cursor-pointer"
+              >
+                <option value="ALL">All Zones</option>
+                {zones.map((z) => (
+                  <option key={z.id} value={z.id}>
+                    {z.building} · {z.floor} · {z.name}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                aria-label="Filter by status"
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value as StatusFilter);
+                  setPageNumber(0);
+                }}
+                className="h-9 px-3 rounded-[6px] bg-[#F0EDE8]/60 text-xs font-semibold border-0 text-[#242424] cursor-pointer"
+              >
+                <option value="ALL">All Statuses</option>
+                <option value="AVAILABLE">Available</option>
+                <option value="SUSPENDED">Suspended</option>
+              </select>
+
+              {hasActiveFilter && (
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  className="px-2.5 h-9 text-xs font-semibold text-[#D97757] hover:underline cursor-pointer"
+                >
+                  Clear filters
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -407,8 +479,8 @@ export const FindResource: React.FC = () => {
                       <span
                         className={`text-[10px] font-bold px-2 py-0.5 rounded-[4px] ${
                           res.status === 'AVAILABLE'
-                            ? 'bg-[#22C55E]/10 text-[#22C55E]'
-                            : 'bg-[#F59E0B]/15 text-[#B45309]'
+                            ? 'bg-[#E8F5EE] text-[#2E7D32]'
+                            : 'bg-[#FFEBEE] text-[#C62828]'
                         }`}
                       >
                         {res.status}
