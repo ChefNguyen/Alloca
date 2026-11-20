@@ -1,0 +1,143 @@
+<mxfile host="app.diagrams.net" agent="Alloca BPMN Engine">
+  <diagram id="alloca_dat_tai_nguyen" name="Quản lý Đặt tài nguyên &amp; Xử lý xung đột thời gian thực">
+    <mxGraphModel dx="1414" dy="823" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1180" pageHeight="680" background="#ffffff" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="pool" parent="1" style="swimlane;html=1;childLayout=stackLayout;resizeParent=1;resizeParentMax=0;startSize=30;horizontal=1;horizontalStack=0;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.5;fontStyle=1;fontSize=13;fontColor=#000000;" value="Quản lý Đặt tài nguyên &amp; Xử lý xung đột thời gian thực" vertex="1">
+          <mxGeometry height="650" width="1640" x="40" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="lane_user" parent="pool" style="swimlane;html=1;startSize=30;horizontal=0;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1;fontSize=11;fontStyle=1;fontColor=#000000;collapsible=0;" value="Người dùng&#xa;(Nhân viên / Quản lý)" vertex="1">
+          <mxGeometry height="180" width="1640" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="d1_start" parent="lane_user" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.5;" vertex="1">
+          <mxGeometry height="36" width="36" x="50" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="d1_task_select" parent="lane_user" style="rounded=1;whiteSpace=wrap;html=1;arcSize=18;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;align=center;" value="Chọn tài nguyên, ngày&#xa;&amp; khung giờ đặt chỗ" vertex="1">
+          <mxGeometry height="60" width="130" x="120" y="48" as="geometry" />
+        </mxCell>
+        <mxCell id="d1_task_purpose" parent="lane_user" style="rounded=1;whiteSpace=wrap;html=1;arcSize=18;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;align=center;" value="Nhập mục đích sử dụng&#xa;&amp; người tham gia" vertex="1">
+          <mxGeometry height="60" width="130" x="280" y="48" as="geometry" />
+        </mxCell>
+        <mxCell id="d1_task_send" parent="lane_user" style="rounded=1;whiteSpace=wrap;html=1;arcSize=18;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;align=center;" value="Gửi yêu cầu đặt chỗ&#xa;(POST /api/v1/bookings)" vertex="1">
+          <mxGeometry height="60" width="130" x="440" y="48" as="geometry" />
+        </mxCell>
+        <mxCell id="d1_doc_req" parent="lane_user" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#ffffff;strokeColor=#000000;size=12;strokeWidth=1;fontSize=9;fontColor=#000000;align=center;" value="Yêu cầu&#xa;đặt chỗ" vertex="1">
+          <mxGeometry height="40" width="60" x="610" y="122" as="geometry" />
+        </mxCell>
+        <mxCell id="d1_end_success" parent="lane_user" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#ffffff;strokeColor=#000000;strokeWidth=3.5;" vertex="1">
+          <mxGeometry height="36" width="36" x="1510" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_19" edge="1" parent="lane_user" source="d1_task_notify_user" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;" target="d1_end_success">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="d1_task_notify_user" parent="lane_user" style="rounded=1;whiteSpace=wrap;html=1;arcSize=18;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;align=center;" value="Nhận thông báo xác nhận&#xa;&amp; mã đặt chỗ (201 Created)" vertex="1">
+          <mxGeometry height="60" width="140" x="1325" y="48" as="geometry" />
+        </mxCell>
+        <mxCell id="lane_system" parent="pool" style="swimlane;html=1;startSize=30;horizontal=0;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1;fontSize=11;fontStyle=1;fontColor=#000000;collapsible=0;" value="Hệ thống Alloca&#xa;(Booking Service)" vertex="1">
+          <mxGeometry height="310" width="1640" y="210" as="geometry" />
+        </mxCell>
+        <mxCell id="d1_task_validate" parent="lane_system" style="rounded=1;whiteSpace=wrap;html=1;arcSize=18;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;align=center;" value="Kiểm tra hợp lệ:&#xa;- Quy tắc 30p-8h, tương lai&#xa;- Giờ hoạt động &amp; phân quyền" vertex="1">
+          <mxGeometry height="60" width="140" x="435" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="d1_gw_valid" parent="lane_system" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.5;fontSize=16;fontStyle=1;fontColor=#000000;align=center;" value="X" vertex="1">
+          <mxGeometry height="40" width="40" x="620" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="d1_task_reject" parent="lane_system" style="rounded=1;whiteSpace=wrap;html=1;arcSize=18;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;align=center;" value="Từ chối yêu cầu&#xa;&amp; Báo lỗi (400 / 403)" vertex="1">
+          <mxGeometry height="50" width="130" x="575" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="d1_end_reject" parent="lane_system" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#ffffff;strokeColor=#000000;strokeWidth=3.5;" vertex="1">
+          <mxGeometry height="36" width="36" x="622" y="210" as="geometry" />
+        </mxCell>
+        <mxCell id="d1_task_lock" parent="lane_system" style="rounded=1;whiteSpace=wrap;html=1;arcSize=18;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;align=center;" value="Bắt đầu Transaction &amp;&#xa;Khóa hàng tài nguyên&#xa;(Pessimistic Lock FOR UPDATE)" vertex="1">
+          <mxGeometry height="60" width="150" x="700" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="d1_task_conflict" parent="lane_system" style="rounded=1;whiteSpace=wrap;html=1;arcSize=18;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;align=center;" value="Kiểm tra trùng lịch với các&#xa;booking CONFIRMED" vertex="1">
+          <mxGeometry height="60" width="140" x="880" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="d1_gw_conflict" parent="lane_system" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.5;fontSize=16;fontStyle=1;fontColor=#000000;align=center;" value="X" vertex="1">
+          <mxGeometry height="40" width="40" x="1050" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="d1_task_rollback" parent="lane_system" style="rounded=1;whiteSpace=wrap;html=1;arcSize=18;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;align=center;" value="Rollback Transaction &amp;&#xa;Báo lỗi xung đột (409)" vertex="1">
+          <mxGeometry height="50" width="130" x="1005" y="140" as="geometry" />
+        </mxCell>
+        <mxCell id="d1_end_conflict" parent="lane_system" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#ffffff;strokeColor=#000000;strokeWidth=3.5;" vertex="1">
+          <mxGeometry height="36" width="36" x="1052" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="lane_db" parent="pool" style="swimlane;html=1;startSize=30;horizontal=0;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1;fontSize=11;fontStyle=1;fontColor=#000000;collapsible=0;" value="Cơ sở dữ liệu&#xa;(PostgreSQL)" vertex="1">
+          <mxGeometry height="130" width="1640" y="520" as="geometry" />
+        </mxCell>
+        <mxCell id="d1_task_commit" parent="lane_db" style="rounded=1;whiteSpace=wrap;html=1;arcSize=18;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;align=center;" value="Lưu booking CONFIRMED,&#xa;ghi nhận Audit Trail &amp;&#xa;Commit Transaction" vertex="1">
+          <mxGeometry height="60" width="140" x="1150" y="-178" as="geometry" />
+        </mxCell>
+        <mxCell id="d1_db" parent="lane_db" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=8;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;align=center;" value="Cơ sở dữ liệu&#xa;(PostgreSQL)" vertex="1">
+          <mxGeometry height="60" width="80" x="1250" y="17" as="geometry" />
+        </mxCell>
+        <mxCell id="d1_doc_booking" parent="lane_db" style="shape=note;whiteSpace=wrap;html=1;backgroundOutline=1;darkOpacity=0.05;fillColor=#ffffff;strokeColor=#000000;size=12;strokeWidth=1;fontSize=9;fontColor=#000000;align=center;" value="Bản ghi Đặt chỗ&#xa;&amp; Lịch sử Audit" vertex="1">
+          <mxGeometry height="50" width="80" x="1120" y="17" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_15" edge="1" parent="lane_db" source="d1_task_commit" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;dashed=1;" target="d1_db" value="Lưu trữ">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_16" edge="1" parent="lane_db" source="d1_task_commit" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;dashed=1;endArrow=none;" target="d1_doc_booking">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_17" edge="1" parent="lane_db" source="d1_task_commit" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;" target="d1_task_dispatch">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="d1_task_dispatch" parent="lane_db" style="rounded=1;whiteSpace=wrap;html=1;arcSize=18;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;align=center;" value="Kích hoạt gửi thông báo&#xa;in-app tới người đặt" vertex="1">
+          <mxGeometry height="60" width="130" x="1330" y="-178" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_14" edge="1" parent="pool" source="d1_gw_conflict" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;" target="d1_task_commit" value="Không trùng">
+          <mxGeometry relative="1" x="0.6667" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge_18" edge="1" parent="pool" source="d1_task_dispatch" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;" target="d1_task_notify_user">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_1" edge="1" parent="1" source="d1_start" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;" target="d1_task_select">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_2" edge="1" parent="1" source="d1_task_select" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;" target="d1_task_purpose">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_3" edge="1" parent="1" source="d1_task_purpose" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;" target="d1_task_send">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_4" edge="1" parent="1" source="d1_task_send" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;dashed=1;endArrow=none;" target="d1_doc_req">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_5" edge="1" parent="1" source="d1_task_send" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;" target="d1_task_validate">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_6" edge="1" parent="1" source="d1_task_validate" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;" target="d1_gw_valid">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_7" edge="1" parent="1" source="d1_gw_valid" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;" target="d1_task_reject" value="Không">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_8" edge="1" parent="1" source="d1_task_reject" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;" target="d1_end_reject">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_9" edge="1" parent="1" source="d1_gw_valid" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;" target="d1_task_lock" value="Có">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge_10" edge="1" parent="1" source="d1_task_lock" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;" target="d1_task_conflict">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_11" edge="1" parent="1" source="d1_task_conflict" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;" target="d1_gw_conflict">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_12" edge="1" parent="1" source="d1_gw_conflict" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;" target="d1_task_rollback" value="Trùng">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_13" edge="1" parent="1" source="d1_task_rollback" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;" target="d1_end_conflict">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
