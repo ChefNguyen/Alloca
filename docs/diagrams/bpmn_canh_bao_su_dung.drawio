@@ -1,0 +1,156 @@
+<mxfile host="app.diagrams.net" agent="Alloca BPMN Engine">
+  <diagram id="alloca_canh_bao_su_dung" name="Giám sát Tỷ lệ sử dụng &amp; Tự động cảnh báo vượt ngưỡng">
+    <mxGraphModel dx="1704" dy="992" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1260" pageHeight="720" background="#ffffff" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="pool" parent="1" style="swimlane;html=1;childLayout=stackLayout;resizeParent=1;resizeParentMax=0;startSize=30;horizontal=1;horizontalStack=0;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.5;fontStyle=1;fontSize=13;fontColor=#000000;" value="Giám sát Tỷ lệ sử dụng &amp; Tự động cảnh báo vượt ngưỡng" vertex="1">
+          <mxGeometry height="890" width="1330" x="40" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="lane_scheduler" parent="pool" style="swimlane;html=1;startSize=30;horizontal=0;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1;fontSize=11;fontStyle=1;fontColor=#000000;collapsible=0;" value="Bộ lập lịch&#xa;(Spring Scheduler)" vertex="1">
+          <mxGeometry height="130" width="1330" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="d3_start_timer" parent="lane_scheduler" style="shape=mxgraph.bpmn.shape;html=1;verticalLabelPosition=bottom;labelBackgroundColor=#ffffff;verticalAlign=top;perimeter=ellipsePerimeter;outline=standard;symbol=timer;strokeColor=#000000;strokeWidth=1.5;fillColor=#ffffff;" vertex="1">
+          <mxGeometry height="36" width="36" x="50" y="45" as="geometry" />
+        </mxCell>
+        <mxCell id="d3_task_trigger" parent="lane_scheduler" style="rounded=1;whiteSpace=wrap;html=1;arcSize=18;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;align=center;" value="Kích hoạt định kỳ 00:05 AM&#xa;hoặc Catch-up khi khởi động" vertex="1">
+          <mxGeometry height="56" width="140" x="120" y="35" as="geometry" />
+        </mxCell>
+        <mxCell id="lane_system" parent="pool" style="swimlane;html=1;startSize=30;horizontal=0;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1;fontSize=11;fontStyle=1;fontColor=#000000;collapsible=0;" value="Hệ thống Phân tích Alloca&#xa;(Analytics &amp; Alert Service)" vertex="1">
+          <mxGeometry height="460" width="1330" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="d3_task_query_res" parent="lane_system" style="rounded=1;whiteSpace=wrap;html=1;arcSize=18;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;align=center;" value="Truy vấn danh mục tài nguyên &amp;&#xa;khung giờ hoạt động (7 ngày qua)" vertex="1">
+          <mxGeometry height="60" width="150" x="115" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="d3_task_calc_rate" parent="lane_system" style="rounded=1;whiteSpace=wrap;html=1;arcSize=18;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;align=center;" value="Tính tổng phút đã đặt &amp;&#xa;tổng phút hoạt động quy chuẩn" vertex="1">
+          <mxGeometry height="60" width="140" x="290" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="d3_task_skip_denom" parent="lane_system" style="rounded=1;whiteSpace=wrap;html=1;arcSize=18;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;align=center;" value="Mẫu số = 0:&#xa;Ghi nhận N/A &amp; Bỏ qua" vertex="1">
+          <mxGeometry height="45" width="130" x="410" y="125" as="geometry" />
+        </mxCell>
+        <mxCell id="d3_gw_denom" parent="lane_system" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.5;fontSize=16;fontStyle=1;fontColor=#000000;align=center;" value="X" vertex="1">
+          <mxGeometry height="40" width="40" x="455" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="d3_end_skip" parent="lane_system" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#ffffff;strokeColor=#000000;strokeWidth=3.5;" vertex="1">
+          <mxGeometry height="36" width="36" x="457" y="190" as="geometry" />
+        </mxCell>
+        <mxCell id="d3_task_compare_thresh" parent="lane_system" style="rounded=1;whiteSpace=wrap;html=1;arcSize=18;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;align=center;" value="So sánh tỷ lệ sử dụng&#xa;với ngưỡng quy định (&gt; 85%)" vertex="1">
+          <mxGeometry height="60" width="140" x="555" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="d3_gw_exceed" parent="lane_system" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.5;fontSize=16;fontStyle=1;fontColor=#000000;align=center;" value="X" vertex="1">
+          <mxGeometry height="40" width="40" x="725" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="d3_task_resolve_normal" parent="lane_system" style="rounded=1;whiteSpace=wrap;html=1;arcSize=18;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;align=center;" value="Nếu có alert active:&#xa;Tự động đóng RATE_NORMALIZED" vertex="1">
+          <mxGeometry height="50" width="130" x="680" y="125" as="geometry" />
+        </mxCell>
+        <mxCell id="d3_end_normal" parent="lane_system" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#ffffff;strokeColor=#000000;strokeWidth=3.5;" vertex="1">
+          <mxGeometry height="36" width="36" x="727" y="195" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_5" edge="1" parent="lane_system" source="d3_gw_denom" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="d3_task_skip_denom" value="Mẫu = 0">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="490" y="125" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge_6" edge="1" parent="lane_system" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;" target="d3_end_skip">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="475" y="170" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge_7" edge="1" parent="lane_system" source="d3_gw_denom" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;" target="d3_task_compare_thresh" value="Mẫu &gt; 0">
+          <mxGeometry relative="1" x="-0.1667" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge_8" edge="1" parent="lane_system" source="d3_task_compare_thresh" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;" target="d3_gw_exceed">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_9" edge="1" parent="lane_system" source="d3_gw_exceed" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;" target="d3_task_resolve_normal" value="&lt;= 85%">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_10" edge="1" parent="lane_system" source="d3_task_resolve_normal" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;" target="d3_end_normal">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_11" edge="1" parent="lane_system" source="d3_gw_exceed" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;" target="d3_task_check_active" value="&gt; 85%">
+          <mxGeometry relative="1" x="-0.0909" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge_12" edge="1" parent="lane_system" source="d3_task_check_active" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;" target="d3_gw_has_active">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_13" edge="1" parent="lane_system" source="d3_gw_has_active" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;" target="d3_task_update_metrics" value="Đã có">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_14" edge="1" parent="lane_system" source="d3_task_update_metrics" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;" target="d3_end_anti_spam">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_15" edge="1" parent="lane_system" source="d3_gw_has_active" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;" target="d3_task_create_alert" value="Mới">
+          <mxGeometry relative="1" x="-0.1111" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="d3_task_check_active" parent="lane_system" style="rounded=1;whiteSpace=wrap;html=1;arcSize=18;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;align=center;" value="Kiểm tra cảnh báo đang active&#xa;(OPEN / ACKNOWLEDGED)" vertex="1">
+          <mxGeometry height="60" width="140" x="820" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="d3_gw_has_active" parent="lane_system" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.5;fontSize=16;fontStyle=1;fontColor=#000000;align=center;" value="X" vertex="1">
+          <mxGeometry height="40" width="40" x="990" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="d3_task_create_alert" parent="lane_system" style="rounded=1;whiteSpace=wrap;html=1;arcSize=18;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;align=center;" value="Tạo Alert OPEN mới &amp;&#xa;Định tuyến người nhận theo quyền" vertex="1">
+          <mxGeometry height="60" width="140" x="1075" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="d3_task_update_metrics" parent="lane_system" style="rounded=1;whiteSpace=wrap;html=1;arcSize=18;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;align=center;" value="Cập nhật số liệu mới&#xa;(Chống spam thông báo)" vertex="1">
+          <mxGeometry height="50" width="130" x="945" y="125" as="geometry" />
+        </mxCell>
+        <mxCell id="d3_task_ack" parent="lane_system" style="rounded=1;whiteSpace=wrap;html=1;arcSize=18;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;align=center;" value="Xác nhận đã tiếp nhận&#xa;(Bấm Acknowledge)" vertex="1">
+          <mxGeometry height="60" width="130" x="1080" y="300" as="geometry" />
+        </mxCell>
+        <mxCell id="d3_task_view_alert" parent="lane_system" style="rounded=1;whiteSpace=wrap;html=1;arcSize=18;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;align=center;" value="Nhận thông báo in-app &amp;&#xa;xem telemetry trên Dashboard" vertex="1">
+          <mxGeometry height="60" width="140" x="1075" y="183" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_17" edge="1" parent="lane_system" source="d3_task_create_alert" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;" target="d3_task_view_alert">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_18" edge="1" parent="lane_system" source="d3_task_view_alert" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;" target="d3_task_ack">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_19" edge="1" parent="lane_system" source="d3_task_ack" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;" target="d3_end_ack">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="d3_end_ack" parent="lane_system" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#ffffff;strokeColor=#000000;strokeWidth=3.5;" vertex="1">
+          <mxGeometry height="36" width="36" x="1127" y="390" as="geometry" />
+        </mxCell>
+        <mxCell id="d3_end_anti_spam" parent="lane_system" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#ffffff;strokeColor=#000000;strokeWidth=3.5;" vertex="1">
+          <mxGeometry height="36" width="36" x="992" y="195" as="geometry" />
+        </mxCell>
+        <mxCell id="lane_recipient" parent="pool" style="swimlane;html=1;startSize=30;horizontal=0;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1;fontSize=11;fontStyle=1;fontColor=#000000;collapsible=0;" value="Người nhận cảnh báo&#xa;(Manager / Admin)" vertex="1">
+          <mxGeometry height="140" width="1330" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="lane_db" parent="pool" style="swimlane;html=1;startSize=30;horizontal=0;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1;fontSize=11;fontStyle=1;fontColor=#000000;collapsible=0;" value="Cơ sở dữ liệu&#xa;(PostgreSQL)" vertex="1">
+          <mxGeometry height="130" width="1330" y="760" as="geometry" />
+        </mxCell>
+        <mxCell id="d3_db" parent="lane_db" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=8;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;align=center;" value="Cơ sở dữ liệu&#xa;(PostgreSQL)" vertex="1">
+          <mxGeometry height="60" width="80" x="1230" y="40" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_16" edge="1" parent="pool" source="d3_task_create_alert" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;dashed=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;entryPerimeter=0;" target="d3_db" value="Lưu alert">
+          <mxGeometry relative="1" x="0.0866" as="geometry">
+            <mxPoint as="offset" />
+            <mxPoint x="1199.9999999999998" y="219.9999999999999" as="sourcePoint" />
+            <mxPoint x="1235" y="590" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge_1" edge="1" parent="1" source="d3_start_timer" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;" target="d3_task_trigger">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_2" edge="1" parent="1" source="d3_task_trigger" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;" target="d3_task_query_res">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_3" edge="1" parent="1" source="d3_task_query_res" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;" target="d3_task_calc_rate">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_4" edge="1" parent="1" source="d3_task_calc_rate" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#000000;strokeWidth=1.2;fontSize=10;fontColor=#000000;" target="d3_gw_denom">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
